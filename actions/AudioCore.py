@@ -1,5 +1,9 @@
 import enum
 import time
+try:
+    from gi.repository import Playerctl
+except Exception:
+    Playerctl = None
 
 from loguru import logger as log
 
@@ -67,6 +71,8 @@ class AudioCore(ActionCore):
 
         # Throttle for periodic volume refresh (primarily for Playerctl players)
         self._last_volume_refresh = 0.0
+        self._player_volume_handler_id = None
+        self._player_object = None
 
         self.create_event_assigners()
 
@@ -189,7 +195,9 @@ class AudioCore(ActionCore):
         if self.show_info_content and self.info_content == InfoContent.VOLUME.value and \
                 self.device_filter == DeviceFilter.MUSIC.value and self.selected_device:
             now = time.monotonic()
-            if now - self._last_volume_refresh >= 1.0:
+            # Faster polling when no signal handler is attached
+            interval = 0.25 if self._player_volume_handler_id is None else 1.0
+            if now - self._last_volume_refresh >= interval:
                 self._last_volume_refresh = now
                 self.display_device_info()
 
@@ -242,6 +250,9 @@ class AudioCore(ActionCore):
 
     def device_filter_changed(self, widget, value, old):
         self.device_filter = value
+        # Disconnect old player signals when leaving MUSIC filter
+        if self.device_filter != DeviceFilter.MUSIC.value:
+            self._disconnect_player_signal()
         self.load_devices()
 
     def device_changed(self, widget, value, old):
@@ -249,6 +260,11 @@ class AudioCore(ActionCore):
 
         self.display_device_name()
         self.display_device_info()
+        # Connect to Playerctl volume signals when a music player is selected
+        if self.device_filter == DeviceFilter.MUSIC.value:
+            self._connect_player_signal()
+        else:
+            self._disconnect_player_signal()
 
     def show_info_content_changed(self, widget, value, old):
         self.show_info_content = value
@@ -296,6 +312,13 @@ class AudioCore(ActionCore):
     def display_volume(self):
         if not self.device_filter or not self.selected_device:
             return
+
+        # If we already have a player object, use it directly for fresher values
+        if Playerctl and self.device_filter == DeviceFilter.MUSIC.value and isinstance(self._player_object, Playerctl.Player):
+            try:
+                return str(int(round(self._player_object.props.volume * 100)))
+            except Exception as e:
+                log.debug(f"Could not read volume from connected player: {e}")
 
         volumes = get_volumes_from_device(self.device_filter, self.selected_device.pulse_name)
 
@@ -355,3 +378,30 @@ class AudioCore(ActionCore):
                 self.selected_device = device
                 self.device_combo_row.set_selected_item(device)
                 break
+
+    def _connect_player_signal(self):
+        if not Playerctl or self.selected_device is None:
+            return
+        try:
+            player = get_device(self.device_filter, self.selected_device.pulse_name)
+            if not isinstance(player, Playerctl.Player):
+                return
+            self._disconnect_player_signal()
+            self._player_object = player
+            self._player_volume_handler_id = player.connect("volume-changed", self._on_player_volume_changed)
+        except Exception as e:
+            log.debug(f"Could not connect to player signals: {e}")
+
+    def _disconnect_player_signal(self):
+        if self._player_object and self._player_volume_handler_id:
+            try:
+                self._player_object.disconnect(self._player_volume_handler_id)
+            except Exception as e:
+                log.debug(f"Could not disconnect player signal: {e}")
+        self._player_object = None
+        self._player_volume_handler_id = None
+
+    def _on_player_volume_changed(self, player, value):
+        # Update immediately on signal, then throttle subsequent polls
+        self._last_volume_refresh = time.monotonic()
+        self.display_device_info()
