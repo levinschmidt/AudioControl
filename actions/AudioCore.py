@@ -80,6 +80,7 @@ class AudioCore(ActionCore):
         self._player_object = None
         # Prevent repeated clears when a sink-input disappears
         self._sink_input_lost = False
+        self._suppress_device_changed = False
 
         self.create_event_assigners()
 
@@ -274,6 +275,9 @@ class AudioCore(ActionCore):
         self.load_devices()
 
     def device_changed(self, widget, value, old):
+        if self._suppress_device_changed:
+            log.debug("device_changed suppressed (value=%s, old=%s)", value, old)
+            return
         # When selection is cleared (e.g., app vanished), do not auto-select another
         if value is None or value == "":
             log.debug("device_changed: selection cleared (old=%s)", old)
@@ -396,9 +400,11 @@ class AudioCore(ActionCore):
             if self._sink_input_lost:
                 return
             self._sink_input_lost = True
+            self._suppress_device_changed = True
             self.selected_device = None
             self.device_combo_row.set_selected_item(None)
             self.device_combo_row.populate(self.loaded_devices, "")
+            self._suppress_device_changed = False
             self.display_device_info()
 
     def display_icon(self):
