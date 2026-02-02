@@ -81,7 +81,7 @@ class AudioCore(ActionCore):
         # Prevent repeated clears when a sink-input disappears
         self._sink_input_lost = False
         self._suppress_device_changed = False
-        self._ignore_next_selection = False
+        self._block_selection_until = 0.0
 
         self.create_event_assigners()
 
@@ -288,9 +288,8 @@ class AudioCore(ActionCore):
             if value not in (None, ""):
                 self._suppress_device_changed = False
             return
-        if self._ignore_next_selection and value not in (None, ""):
-            log.debug("device_changed: ignoring first re-selection after loss (value={}, old={})", value, old)
-            self._ignore_next_selection = False
+        if self._block_selection_until and time.monotonic() < self._block_selection_until and value not in (None, ""):
+            log.debug("device_changed: debouncing re-selection (value={}, old={})", value, old)
             self._suppress_device_changed = True
             self.device_combo_row.set_selected_item(None)
             self._suppress_device_changed = False
@@ -300,12 +299,13 @@ class AudioCore(ActionCore):
             log.debug("device_changed: selection cleared (old={})", old)
             self.selected_device = None
             self._sink_input_lost = True
+            self._block_selection_until = time.monotonic() + 0.5
             self.display_device_info()
             return
         log.debug("device_changed: selected {} (old={})", getattr(value, "device_name", value), getattr(old, "device_name", old))
         self.selected_device = value
         self._sink_input_lost = False
-        self._ignore_next_selection = False
+        self._block_selection_until = 0.0
 
         self.display_device_name()
         self.display_device_info()
@@ -418,7 +418,7 @@ class AudioCore(ActionCore):
                 return
             self._sink_input_lost = True
             self._suppress_device_changed = True
-            self._ignore_next_selection = True
+            self._block_selection_until = time.monotonic() + 0.5
             self.selected_device = None
             self.device_combo_row.set_selected_item(None)
             # Do not repopulate to avoid auto-selecting another item
