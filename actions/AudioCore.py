@@ -257,6 +257,8 @@ class AudioCore(ActionCore):
                     media_name=media_name,
                 )
                 self.loaded_devices.append(new_device)
+
+            log.debug("load_devices: filter={}, entries={}", self.device_filter, len(self.loaded_devices))
         except Exception as e:
             log.error(f"Error while populating device list: {e}")
             return
@@ -406,6 +408,25 @@ class AudioCore(ActionCore):
             self.display_device_info()
         elif self.device_filter == DeviceFilter.SINK_INPUT.value:
             log.debug("pulse_event: app changed (event.index={}, selected.index={}); leaving selection unchanged", event.index, index)
+            if self._sink_input_lost and self.selected_device:
+                log.debug("pulse_event: attempting reattach to {}", self.selected_device.device_name)
+                self._suppress_device_changed = True
+                self.load_devices()
+                self._suppress_device_changed = False
+                reattached = False
+                for dev in self.loaded_devices:
+                    if dev.pulse_name == self.selected_device.pulse_name or (
+                        getattr(dev, "proc_bin", None) and getattr(self.selected_device, "proc_bin", None) and dev.proc_bin == self.selected_device.proc_bin
+                    ):
+                        self.selected_device = dev
+                        self.device_combo_row.set_selected_item(dev)
+                        self._sink_input_lost = False
+                        self.display_device_info()
+                        log.debug("pulse_event: reattached to {} (index={})", dev.device_name, dev.pulse_index)
+                        reattached = True
+                        break
+                if not reattached:
+                    log.debug("pulse_event: reattach failed for {}", self.selected_device.device_name)
             self._sink_input_lost = True
             # Do not alter UI selection automatically
 
