@@ -90,7 +90,7 @@ class PlayerWrapper:
 
 # --------------------------------
 
-def get_device(filter: DeviceFilter, identifier):
+def get_device(filter: DeviceFilter, identifier, fallback_name=None):
     """
     Returns a Pulse object OR a Playerctl.Player object depending on filter.
     """
@@ -130,9 +130,10 @@ def get_device(filter: DeviceFilter, identifier):
                             best_name,
                             sink_input.proplist.get('application.name'),
                             sink_input.proplist.get('media.name'),
-                            sink_input.proplist.get('application.process.binary')
+                            sink_input.proplist.get('application.process.binary'),
+                            fallback_name,
                         }
-                        if identifier in names:
+                        if identifier in names or (fallback_name and fallback_name in names):
                             device = sink_input
                             break
             return device
@@ -164,9 +165,9 @@ def get_device_list(filter: DeviceFilter):
         return switch.get(filter.get_value(), {})
 
 
-def get_volumes_from_device(device_filter: DeviceFilter, identifier: str):
+def get_volumes_from_device(device_filter: DeviceFilter, identifier: str, fallback_name: str | None = None):
     try:
-        device = get_device(device_filter, identifier)
+        device = get_device(device_filter, identifier, fallback_name)
 
         # --- FIX: Safety Check ---
         if device is None:
