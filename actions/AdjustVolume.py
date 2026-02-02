@@ -88,41 +88,25 @@ class AdjustVolume(AudioCore):
             return
 
         try:
-            device = get_device(
-                self.device_filter,
-                self.selected_device.pulse_name,
-                self.selected_device.device_name,
-                self.selected_device.pulse_index,
-                getattr(self.selected_device, "proc_bin", None),
-                getattr(self.selected_device, "media_name", None),
-            )
-
-            if device is None:
-                self.show_error(1)
-                return
+            device = get_device(self.device_filter, self.selected_device.pulse_name)
 
             if adjustment < 0:
                 change_volume(device, adjustment)
+                # FIX: Force display update immediately
+                self.display_device_info()
                 return
 
-            # --- CHANGE THIS LINE ---
-            # Old: volumes = get_volumes_from_device(self.device_filter, device.name)
-            # New: Use self.selected_device.pulse_name to pass the correct ID
-            volumes = get_volumes_from_device(
-                self.device_filter,
-                self.selected_device.pulse_name,
-                self.selected_device.device_name,
-                self.selected_device.pulse_index,
-                self.selected_device.proc_bin,
-                self.selected_device.media_name,
-            )
-            # ------------------------
+            volumes = get_volumes_from_device(self.device_filter, self.selected_device.pulse_name)
 
             if len(volumes) > 0 and volumes[0] < self.bounds:
                 if volumes[0] + adjustment > self.bounds:
                     set_volume(device, self.bounds)
                 else:
                     change_volume(device, adjustment)
+
+                # FIX: Force display update immediately
+                self.display_device_info()
+
         except Exception as e:
             log.error(e)
             self.show_error(1)
