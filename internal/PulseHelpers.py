@@ -250,3 +250,23 @@ def set_default_device(device_filter, pulse_device_name):
 def get_standard_device(device_filter):
     # ... existing code ...
     pass
+
+
+def get_device_list(filter: DeviceFilter):
+    if filter.get_value() == DeviceFilter.MUSIC.get_value():
+        if not Playerctl:
+            return []
+        try:
+            player_names = Playerctl.list_players()
+            return [PlayerWrapper(name.name) for name in player_names]
+        except Exception as e:
+            log.error(f"Error listing players: {e}")
+            return []
+
+    with pulsectl.Pulse("device-list-getter") as pulse:
+        switch = {
+            DeviceFilter.SINK.get_value(): pulse.sink_list(),
+            DeviceFilter.SOURCE.get_value(): pulse.source_list(),
+            DeviceFilter.SINK_INPUT.get_value(): pulse.sink_input_list(),
+        }
+        return switch.get(filter.get_value(), {})
