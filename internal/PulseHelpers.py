@@ -84,6 +84,7 @@ def get_device(filter: DeviceFilter, identifier):
     """
     Returns a Pulse object OR a Playerctl.Player object depending on filter.
     """
+    filter_value = _filter_value(filter)
     # 1. Handle Music Players via Playerctl
     if filter == DeviceFilter.MUSIC.get_value():
         if Playerctl:
@@ -101,13 +102,29 @@ def get_device(filter: DeviceFilter, identifier):
     with pulsectl.Pulse("device-getter") as pulse:
         try:
             device = None
-            if filter == DeviceFilter.SINK.get_value():
+            if filter_value == DeviceFilter.SINK.get_value():
                 device = pulse.get_sink_by_name(identifier)
-            elif filter == DeviceFilter.SOURCE.get_value():
+            elif filter_value == DeviceFilter.SOURCE.get_value():
                 device = pulse.get_source_by_name(identifier)
-            elif filter == DeviceFilter.SINK_INPUT.get_value():
-                # identifier is a string ID, convert to int
-                device = pulse.sink_input_info(int(identifier))
+            elif filter_value == DeviceFilter.SINK_INPUT.get_value():
+                # identifier may be index or descriptive name; try index first
+                try:
+                    device = pulse.sink_input_info(int(identifier))
+                except Exception:
+                    device = None
+                if device is None:
+                    for sink_input in pulse.sink_input_list():
+                        best_name = filter_proplist(sink_input.proplist)
+                        names = {
+                            str(sink_input.index),
+                            best_name,
+                            sink_input.proplist.get('application.name'),
+                            sink_input.proplist.get('media.name'),
+                            sink_input.proplist.get('application.process.binary')
+                        }
+                        if identifier in names:
+                            device = sink_input
+                            break
             return device
         except Exception as e:
             log.error(f"Error while getting device: {identifier} with filter: {filter}. Error: {e}")

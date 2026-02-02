@@ -23,11 +23,13 @@ class InfoContent(enum.Enum):
 
 
 class Device(BaseComboRowItem):
-    def __init__(self, pulse_name, pulse_index, device_name):
+    def __init__(self, pulse_name, pulse_index, device_name, player_name_obj=None):
         super().__init__()
         self.pulse_name: str = pulse_name
         self.pulse_index: int = pulse_index
         self.device_name: str = device_name
+        # Optional Playerctl.PlayerName kept separately; pulse_name stays a string for persistence
+        self.player_name_obj = player_name_obj
 
     def __str__(self):
         return self.device_name
@@ -219,21 +221,23 @@ class AudioCore(ActionCore):
 
                 # --- IDENTIFIER LOGIC ---
                 if self.device_filter == DeviceFilter.SINK_INPUT.value:
-                    # Pulse Applications use Index
-                    pulse_identifier = str(device.index)
+                    # Use descriptive name to survive restarts (indices change)
+                    pulse_identifier = device_name
                 elif self.device_filter == DeviceFilter.MUSIC.value:
-                    # Prefer the original PlayerName when available (falls back to string name)
-                    pulse_identifier = getattr(device, "player_name", device.name)
+                    # Store string identifier for persistence; keep PlayerName separately if present
+                    pulse_identifier = str(device.name)
                 else:
                     # Pulse Sinks/Sources use Name
                     pulse_identifier = device.name
                 # ------------------------
 
-                self.loaded_devices.append(Device(
+                new_device = Device(
                     pulse_name=pulse_identifier,
                     pulse_index=device.index,
-                    device_name=device_name
-                ))
+                    device_name=device_name,
+                    player_name_obj=getattr(device, "player_name", None)
+                )
+                self.loaded_devices.append(new_device)
         except Exception as e:
             log.error(f"Error while populating device list: {e}")
             return
@@ -406,10 +410,6 @@ class AudioCore(ActionCore):
                     handler_id = None
                     used_signal = None
             self._player_volume_handler_id = handler_id
-            if handler_id:
-                log.debug(f"Player volume signal connected using '{used_signal}'")
-            else:
-                log.debug("Player volume signal not available; polling only")
         except Exception as e:
             log.debug(f"Could not connect to player signals: {e}")
 
@@ -424,6 +424,5 @@ class AudioCore(ActionCore):
 
     def _on_player_volume_changed(self, player, *args):
         # Update immediately on signal, then throttle subsequent polls
-        log.debug("Signal volume change received")
         self._last_volume_refresh = time.monotonic()
         self.display_device_info()
