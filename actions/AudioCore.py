@@ -295,17 +295,17 @@ class AudioCore(ActionCore):
             self.device_combo_row.set_selected_item(None)
             self._suppress_device_changed = False
             return
-         # When selection is cleared (e.g., app vanished), do not auto-select another
-         if value is None or value == "":
-             log.debug("device_changed: selection cleared (old={})", old)
-             self.selected_device = None
-             self._sink_input_lost = True
-             self.display_device_info()
-             return
-         log.debug("device_changed: selected {} (old={})", getattr(value, "device_name", value), getattr(old, "device_name", old))
-         self.selected_device = value
-         self._sink_input_lost = False
-+        self._ignore_next_selection = False
+        # When selection is cleared (e.g., app vanished), do not auto-select another
+        if value is None or value == "":
+            log.debug("device_changed: selection cleared (old={})", old)
+            self.selected_device = None
+            self._sink_input_lost = True
+            self.display_device_info()
+            return
+        log.debug("device_changed: selected {} (old={})", getattr(value, "device_name", value), getattr(old, "device_name", old))
+        self.selected_device = value
+        self._sink_input_lost = False
+        self._ignore_next_selection = False
 
         self.display_device_name()
         self.display_device_info()
