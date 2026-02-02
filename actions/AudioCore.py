@@ -26,9 +26,9 @@ class InfoContent(enum.Enum):
 class Device(BaseComboRowItem):
     def __init__(self, pulse_name, pulse_index, device_name, player_name_obj=None, proc_bin=None, media_name=None, node_name=None):
         super().__init__()
-        self.pulse_name: str = pulse_name
-        self.pulse_index: int = pulse_index
-        self.device_name: str = device_name
+        self.pulse_name = pulse_name
+        self.pulse_index = pulse_index
+        self.device_name = device_name
         # Optional Playerctl.PlayerName kept separately; pulse_name stays a string for persistence
         self.player_name_obj = player_name_obj
         # Extra fingerprint for sink-input matching (e.g., chromium-based apps)
@@ -55,11 +55,11 @@ class AudioCore(ActionCore):
 
         # Settings
 
-        self.selected_device: Device = None
+        self.selected_device = None
         # Track the ID string separately to allow reconnection if the app restarts
         self._saved_pulse_id = None
 
-        self.device_filter: DeviceFilter = None
+        self.device_filter = None
         self.info_content = InfoContent.VOLUME.value
 
         self.show_device_name = True
@@ -69,7 +69,7 @@ class AudioCore(ActionCore):
 
         self.use_standard_device = False
 
-        self.loaded_devices: list[Device] = []
+        self.loaded_devices = []
 
         # Icon
 
@@ -324,7 +324,7 @@ class AudioCore(ActionCore):
     def device_changed(self, widget, value, old):
         # 1. PRINT DEBUG
         if value and hasattr(value, 'proc_bin'):
-            print(f"DEBUG: Binary: {value.proc_bin} | Node Name: {value.node_name}")
+            log.info(f"DEBUG: Binary: {value.proc_bin} | Node Name: {value.node_name}")
 
         # 2. SAVE SELECTION
         if value:
