@@ -88,7 +88,12 @@ class AdjustVolume(AudioCore):
             return
 
         try:
-            device = get_device(self.device_filter, self.selected_device.pulse_name, self.selected_device.device_name)
+            device = get_device(
+                self.device_filter,
+                self.selected_device.pulse_name,
+                self.selected_device.device_name,
+                self.selected_device.pulse_index,
+            )
 
             if adjustment < 0:
                 change_volume(device, adjustment)
@@ -97,7 +102,12 @@ class AdjustVolume(AudioCore):
             # --- CHANGE THIS LINE ---
             # Old: volumes = get_volumes_from_device(self.device_filter, device.name)
             # New: Use self.selected_device.pulse_name to pass the correct ID
-            volumes = get_volumes_from_device(self.device_filter, self.selected_device.pulse_name, self.selected_device.device_name)
+            volumes = get_volumes_from_device(
+                self.device_filter,
+                self.selected_device.pulse_name,
+                self.selected_device.device_name,
+                self.selected_device.pulse_index,
+            )
             # ------------------------
 
             if len(volumes) > 0 and volumes[0] < self.bounds:

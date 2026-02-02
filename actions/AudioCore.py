@@ -325,7 +325,8 @@ class AudioCore(ActionCore):
                 log.debug(f"Could not read volume from connected player: {e}")
 
         fallback_name = self.selected_device.device_name if self.device_filter == DeviceFilter.SINK_INPUT.value else None
-        volumes = get_volumes_from_device(self.device_filter, self.selected_device.pulse_name, fallback_name)
+        fallback_index = self.selected_device.pulse_index if self.device_filter == DeviceFilter.SINK_INPUT.value else None
+        volumes = get_volumes_from_device(self.device_filter, self.selected_device.pulse_name, fallback_name, fallback_index)
 
         if len(volumes) > 0:
             return str(int(volumes[0]))
