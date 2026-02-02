@@ -282,19 +282,19 @@ class AudioCore(ActionCore):
 
     def device_changed(self, widget, value, old):
         if self._suppress_device_changed:
-            log.debug("device_changed suppressed (value=%s, old=%s)", value, old)
+            log.debug("device_changed suppressed (value={}, old={})", value, old)
             # Drop suppression once a real selection comes in
             if value not in (None, ""):
                 self._suppress_device_changed = False
             return
         # When selection is cleared (e.g., app vanished), do not auto-select another
         if value is None or value == "":
-            log.debug("device_changed: selection cleared (old=%s)", old)
+            log.debug("device_changed: selection cleared (old={})", old)
             self.selected_device = None
             self._sink_input_lost = True
             self.display_device_info()
             return
-        log.debug("device_changed: selected %s (old=%s)", getattr(value, "device_name", value), getattr(old, "device_name", old))
+        log.debug("device_changed: selected {} (old={})", getattr(value, "device_name", value), getattr(old, "device_name", old))
         self.selected_device = value
         self._sink_input_lost = False
 
@@ -400,11 +400,11 @@ class AudioCore(ActionCore):
         index = self.selected_device.pulse_index
 
         if event.index == index:
-            log.debug("pulse_event: matched current index %s", index)
+            log.debug("pulse_event: matched current index {}", index)
             self.display_icon()
             self.display_device_info()
         elif self.device_filter == DeviceFilter.SINK_INPUT.value:
-            log.debug("pulse_event: selected app disappeared or changed (event.index=%s, selected.index=%s); clearing selection", event.index, index)
+            log.debug("pulse_event: selected app disappeared or changed (event.index={}, selected.index={}); clearing selection", event.index, index)
             if self._sink_input_lost:
                 return
             self._sink_input_lost = True
