@@ -119,6 +119,14 @@ def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_in
             elif filter_value == DeviceFilter.SINK_INPUT.get_value():
                 # Prefer strict matching on process/app names to avoid grabbing the wrong stream
                 best_candidate = None
+                best_rank = -1
+                fingerprints_provided = bool(fallback_proc or fallback_media or (isinstance(identifier, str) and '|' in identifier))
+                id_proc = None
+                id_media = None
+                if isinstance(identifier, str) and '|' in identifier:
+                    parts = identifier.split('|', 1)
+                    id_proc, id_media = parts[0], parts[1]
+
                 for sink_input in pulse.sink_input_list():
                     proc_bin = sink_input.proplist.get('application.process.binary')
                     app_name = sink_input.proplist.get('application.name')
@@ -126,27 +134,36 @@ def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_in
                     idx_str = str(sink_input.index)
 
                     rank = None
-                    if identifier == proc_bin or fallback_proc == proc_bin:
+                    # Match on explicit proc/media fingerprint if available
+                    if id_proc and proc_bin and id_proc == proc_bin:
+                        if id_media and media_name and id_media == media_name:
+                            rank = 5
+                        else:
+                            rank = 4
+                    elif identifier == proc_bin or fallback_proc == proc_bin:
                         rank = 4
                     elif identifier == app_name or fallback_name == app_name:
                         rank = 3
-                    elif identifier == media_name or fallback_media == media_name:
+                    elif identifier == media_name or fallback_media == media_name or (id_media and media_name == id_media):
                         rank = 2
                     elif identifier == idx_str or (fallback_name and fallback_name == idx_str):
                         rank = 1
 
-                    if rank is not None:
-                        candidate = (rank, sink_input)
-                        if best_candidate is None or candidate[0] > best_candidate[0]:
-                            best_candidate = candidate
-                        if rank >= 4:
+                    if rank is not None and rank > best_rank:
+                        best_candidate = sink_input
+                        best_rank = rank
+                        if rank >= 5:
                             break
 
                 if best_candidate:
-                    device = best_candidate[1]
+                    # If we had fingerprints, require at least media/app match (>=2) to accept
+                    if fingerprints_provided and best_rank < 2:
+                        device = None
+                    else:
+                        device = best_candidate
 
-                # If we have fingerprints but no match, avoid picking a random numeric index
-                allow_numeric_fallback = not (fallback_proc or fallback_media)
+                # If we have fingerprints but no suitable match, avoid numeric fallback
+                allow_numeric_fallback = not fingerprints_provided
 
                 if device is None and allow_numeric_fallback and str(identifier).isdigit():
                     try:

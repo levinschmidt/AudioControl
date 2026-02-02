@@ -259,7 +259,11 @@ class AudioCore(ActionCore):
             log.error(f"Error while populating device list: {e}")
             return
 
-        self.device_combo_row.populate(self.loaded_devices, self.device_combo_row.get_value())
+        # Avoid auto-selecting first item if none selected
+        current_value = self.device_combo_row.get_value()
+        self.device_combo_row.populate(self.loaded_devices, current_value if current_value else "")
+        if not current_value:
+            self.device_combo_row.set_selected_item(None)
         self.display_device_info()
 
     # UI Events
