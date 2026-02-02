@@ -1,5 +1,6 @@
 import enum
 import time
+
 try:
     from gi.repository import Playerctl
 except Exception:
@@ -232,25 +233,29 @@ class AudioCore(ActionCore):
                 proc_bin = None
                 media_name = None
                 node_name = None
+
+                # Default identifier is the index (or name) unless we override it below
+                pulse_identifier = device.name
+
                 if self.device_filter == DeviceFilter.SINK_INPUT.value:
                     # Prefer stable identifiers for applications; fallback to index
                     proc_bin = device.proplist.get('application.process.binary') if hasattr(device, 'proplist') else None
                     app_name = device.proplist.get('application.name') if hasattr(device, 'proplist') else None
                     media_name = device.proplist.get('media.name') if hasattr(device, 'proplist') else None
                     node_name = device.proplist.get('node.name') if hasattr(device, 'proplist') else None
-                    # Build a stable identifier; prefer binary+node combo to separate chromium-based apps
+
+                    # MATCHING LOGIC: Priority is Binary + Node Name
                     if proc_bin and node_name:
                         pulse_identifier = f"{proc_bin}|{node_name}"
                     elif proc_bin and media_name:
                         pulse_identifier = f"{proc_bin}|{media_name}"
                     else:
                         pulse_identifier = proc_bin or app_name or str(device.index)
+
                 elif self.device_filter == DeviceFilter.MUSIC.value:
                     # Store string identifier for persistence; keep PlayerName separately if present
                     pulse_identifier = str(device.name)
-                else:
-                    # Pulse Sinks/Sources use Name
-                    pulse_identifier = device.name
+
                 # ------------------------
 
                 new_device = Device(
@@ -291,7 +296,7 @@ class AudioCore(ActionCore):
         self.load_devices()
 
     def device_changed(self, widget, value, old):
-        print(self)
+        print(self.selected_device)
         if self._suppress_device_changed:
             log.debug("device_changed suppressed (value={}, old={})", value, old)
             if value not in (None, ""):
@@ -375,6 +380,7 @@ class AudioCore(ActionCore):
         fallback_proc = self.selected_device.proc_bin if self.device_filter == DeviceFilter.SINK_INPUT.value else None
         fallback_media = self.selected_device.media_name if self.device_filter == DeviceFilter.SINK_INPUT.value else None
         fallback_node = self.selected_device.node_name if self.device_filter == DeviceFilter.SINK_INPUT.value else None
+
         volumes = get_volumes_from_device(
             self.device_filter,
             self.selected_device.pulse_name,
