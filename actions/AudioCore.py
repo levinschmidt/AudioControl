@@ -238,19 +238,20 @@ class AudioCore(ActionCore):
                 pulse_identifier = device.name
 
                 if self.device_filter == DeviceFilter.SINK_INPUT.value:
-                    # Prefer stable identifiers for applications; fallback to index
+                    # Prefer stable identifiers for applications
                     proc_bin = device.proplist.get('application.process.binary') if hasattr(device, 'proplist') else None
-                    app_name = device.proplist.get('application.name') if hasattr(device, 'proplist') else None
                     media_name = device.proplist.get('media.name') if hasattr(device, 'proplist') else None
                     node_name = device.proplist.get('node.name') if hasattr(device, 'proplist') else None
 
-                    # MATCHING LOGIC: Priority is Binary + Node Name
-                    if proc_bin and node_name:
-                        pulse_identifier = f"{proc_bin}|{node_name}"
-                    elif proc_bin and media_name:
-                        pulse_identifier = f"{proc_bin}|{media_name}"
-                    else:
-                        pulse_identifier = proc_bin or app_name or str(device.index)
+                    # Only apply custom matching if binary is present.
+                    # If binary is None, pulse_identifier remains `device.name` (no change).
+                    if proc_bin:
+                        if node_name:
+                            pulse_identifier = f"{proc_bin}|{node_name}"
+                        elif media_name:
+                            pulse_identifier = f"{proc_bin}|{media_name}"
+                        else:
+                            pulse_identifier = proc_bin
 
                 elif self.device_filter == DeviceFilter.MUSIC.value:
                     # Store string identifier for persistence; keep PlayerName separately if present
