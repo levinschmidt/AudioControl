@@ -391,6 +391,8 @@ class AudioCore(ActionCore):
             self._player_volume_handler_id = player.connect("volume-changed", self._on_player_volume_changed)
         except Exception as e:
             log.debug(f"Could not connect to player signals: {e}")
+        self._player_volume_handler_id = player.connect("volume-changed", self._on_player_volume_changed)
+        log.debug(f"Player signal connected: {self._player_volume_handler_id}")
 
     def _disconnect_player_signal(self):
         if self._player_object and self._player_volume_handler_id:
@@ -403,5 +405,6 @@ class AudioCore(ActionCore):
 
     def _on_player_volume_changed(self, player, value):
         # Update immediately on signal, then throttle subsequent polls
+        log.debug(f"Signal volume-changed: {value}")
         self._last_volume_refresh = time.monotonic()
         self.display_device_info()
