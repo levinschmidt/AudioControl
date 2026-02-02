@@ -296,7 +296,10 @@ class AudioCore(ActionCore):
         self.load_devices()
 
     def device_changed(self, widget, value, old):
-        print(self.selected_device)
+        # 1. PRINT THE REQUESTED VALUES
+        if value and hasattr(value, 'proc_bin'):
+            print(f"DEBUG: Binary: {value.proc_bin} | Node Name: {value.node_name}")
+
         if self._suppress_device_changed:
             log.debug("device_changed suppressed (value={}, old={})", value, old)
             if value not in (None, ""):
