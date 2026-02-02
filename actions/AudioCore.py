@@ -56,6 +56,8 @@ class AudioCore(ActionCore):
         # Settings
 
         self.selected_device: Device = None
+        # Track the ID string separately to allow reconnection if the app restarts
+        self._saved_pulse_id = None
 
         self.device_filter: DeviceFilter = None
         self.info_content = InfoContent.VOLUME.value
@@ -234,7 +236,6 @@ class AudioCore(ActionCore):
                 media_name = None
                 node_name = None
 
-                # Default identifier is the index (or name) unless we override it below
                 pulse_identifier = device.name
 
                 if self.device_filter == DeviceFilter.SINK_INPUT.value:
@@ -243,8 +244,6 @@ class AudioCore(ActionCore):
                     media_name = device.proplist.get('media.name') if hasattr(device, 'proplist') else None
                     node_name = device.proplist.get('node.name') if hasattr(device, 'proplist') else None
 
-                    # Only apply custom matching if binary is present.
-                    # If binary is None, pulse_identifier remains `device.name` (no change).
                     if proc_bin:
                         if node_name:
                             pulse_identifier = f"{proc_bin}|{node_name}"
@@ -254,7 +253,6 @@ class AudioCore(ActionCore):
                             pulse_identifier = proc_bin
 
                 elif self.device_filter == DeviceFilter.MUSIC.value:
-                    # Store string identifier for persistence; keep PlayerName separately if present
                     pulse_identifier = str(device.name)
 
                 # ------------------------
@@ -275,11 +273,28 @@ class AudioCore(ActionCore):
             log.error(f"Error while populating device list: {e}")
             return
 
-        # Avoid auto-selecting first item if none selected
-        current_value = self.device_combo_row.get_value()
-        self.device_combo_row.populate(self.loaded_devices, current_value if current_value else "")
-        if not current_value:
+        # --- RECONNECTION LOGIC ---
+        # If we have a saved ID (meaning we were watching something), prefer that.
+        # Otherwise use the ComboRow's current persistence logic.
+        target_value = self._saved_pulse_id or self.device_combo_row.get_value()
+
+        self.device_combo_row.populate(self.loaded_devices, target_value if target_value else "")
+
+        # Explicitly update selected_device if we found our target
+        found_target = False
+        if target_value:
+            for dev in self.loaded_devices:
+                if dev.pulse_name == target_value:
+                    self.selected_device = dev
+                    self.device_combo_row.set_selected_item(dev)
+                    self._sink_input_lost = False
+                    found_target = True
+                    break
+
+        # If we didn't find the target and nothing is selected, ensure state is clear
+        if not found_target and not self.device_combo_row.get_value():
             self.device_combo_row.set_selected_item(None)
+
         self.display_device_info()
 
     # UI Events
@@ -291,21 +306,28 @@ class AudioCore(ActionCore):
 
     def device_filter_changed(self, widget, value, old):
         self.device_filter = value
-        # Disconnect old player signals when leaving MUSIC filter
+        # Reset saved ID when changing filter types, as format likely differs
+        self._saved_pulse_id = None
+
         if self.device_filter != DeviceFilter.MUSIC.value:
             self._disconnect_player_signal()
         self.load_devices()
 
     def device_changed(self, widget, value, old):
-        # 1. PRINT THE REQUESTED VALUES
+        # 1. PRINT DEBUG
         if value and hasattr(value, 'proc_bin'):
             print(f"DEBUG: Binary: {value.proc_bin} | Node Name: {value.node_name}")
+
+        # 2. SAVE SELECTION (Persist ID even if it vanishes later)
+        if value:
+            self._saved_pulse_id = value.pulse_name
 
         if self._suppress_device_changed:
             log.debug("device_changed suppressed (value={}, old={})", value, old)
             if value not in (None, ""):
                 self._suppress_device_changed = False
             return
+
         # When selection is cleared (e.g., app vanished), do not auto-select another
         if value is None or value == "":
             log.debug("device_changed: selection cleared (old={})", old)
@@ -313,13 +335,14 @@ class AudioCore(ActionCore):
             self._sink_input_lost = True
             self.display_device_info()
             return
+
         log.debug("device_changed: selected {} (old={})", getattr(value, "device_name", value), getattr(old, "device_name", old))
         self.selected_device = value
         self._sink_input_lost = False
 
         self.display_device_name()
         self.display_device_info()
-        # Connect to Playerctl volume signals when a music player is selected
+
         if self.device_filter == DeviceFilter.MUSIC.value:
             self._connect_player_signal()
         else:
@@ -372,7 +395,6 @@ class AudioCore(ActionCore):
         if not self.device_filter or not self.selected_device:
             return
 
-        # If we already have a player object, use it directly for fresher values
         if Playerctl and self.device_filter == DeviceFilter.MUSIC.value and isinstance(self._player_object, Playerctl.Player):
             try:
                 return str(int(round(self._player_object.props.volume * 100)))
@@ -415,24 +437,32 @@ class AudioCore(ActionCore):
         self.display_icon()
 
     async def on_pulse_device_change(self, *args, **kwargs):
-        if len(args) < 2 or self.selected_device is None:
+        if len(args) < 2:
             return
 
         event = args[1]
-        index = self.selected_device.pulse_index
 
+        # Always reload devices if we are in a 'Lost' state or no device is selected.
+        # This catches the case where the app reappears (Pulse sends a NEW event).
+        if self._sink_input_lost or self.selected_device is None:
+            self.load_devices()
+            return
+
+        # Normal operation: Check if the event relates to our current device
+        index = self.selected_device.pulse_index
         if event.index == index:
             log.debug("pulse_event: matched current index {}", index)
             self.display_icon()
             self.display_device_info()
+
         elif self.device_filter == DeviceFilter.SINK_INPUT.value:
-            log.debug("pulse_event: app changed (event.index={}, selected.index={}); clearing selection and not reattaching", event.index, index)
-            self._suppress_device_changed = True
-            self.selected_device = None
-            self.device_combo_row.set_selected_item(None)
-            self._suppress_device_changed = False
-            self._sink_input_lost = True
-            self.display_device_info()
+            # Check if this event implies our device is being removed?
+            # Since we don't have exact event type here, we rely on the fact that
+            # if the device is gone, subsequent calls will fail or return empty.
+            # However, if we know Pulse sent a REMOVE for our index, we should handle it.
+            # For now, we rely on the user or polling, OR we can proactively reload if
+            # we suspect a list change.
+            pass
 
     def display_icon(self):
         if not self._current_icon:
@@ -472,21 +502,15 @@ class AudioCore(ActionCore):
             self._player_object = player
 
             handler_id = None
-            # Try native volume signal first
             try:
                 handler_id = player.connect("volume", self._on_player_volume_changed)
-                used_signal = "volume"
             except Exception:
                 handler_id = None
-                used_signal = None
-            # Fallback to property notify signal
             if handler_id is None:
                 try:
                     handler_id = player.connect("notify::volume", self._on_player_volume_changed)
-                    used_signal = "notify::volume"
                 except Exception:
                     handler_id = None
-                    used_signal = None
             self._player_volume_handler_id = handler_id
         except Exception as e:
             log.debug(f"Could not connect to player signals: {e}")
@@ -501,6 +525,5 @@ class AudioCore(ActionCore):
         self._player_volume_handler_id = None
 
     def _on_player_volume_changed(self, player, *args):
-        # Update immediately on signal, then throttle subsequent polls
         self._last_volume_refresh = time.monotonic()
         self.display_device_info()
