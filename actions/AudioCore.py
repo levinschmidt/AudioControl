@@ -189,7 +189,8 @@ class AudioCore(ActionCore):
             self.loaded_devices = []
 
             for device in device_list:
-                if hasattr(device, 'description') and device.description.__contains__("Monitor"):
+                # Logic to skip Monitors (only applies to Pulse objects usually)
+                if hasattr(device, 'description') and "Monitor" in str(device.description):
                     continue
 
                 device_name = filter_proplist(device.proplist)
@@ -197,13 +198,18 @@ class AudioCore(ActionCore):
                 if device_name is None:
                     continue
 
-                # --- CHECK FOR BOTH APP TYPES ---
-                # Both SINK_INPUT and MUSIC need to use the index (ID) as the identifier
-                if self.device_filter == DeviceFilter.SINK_INPUT.value or self.device_filter == DeviceFilter.MUSIC.value:
+                # --- IDENTIFIER LOGIC ---
+                if self.device_filter == DeviceFilter.SINK_INPUT.value:
+                    # Pulse Applications use Index
                     pulse_identifier = str(device.index)
-                else:
+                elif self.device_filter == DeviceFilter.MUSIC.value:
+                    # Playerctl Players use Name (e.g. 'spotify')
+                    # My PlayerWrapper class stores this in .name
                     pulse_identifier = device.name
-                # --------------------------------
+                else:
+                    # Pulse Sinks/Sources use Name
+                    pulse_identifier = device.name
+                # ------------------------
 
                 self.loaded_devices.append(Device(
                     pulse_name=pulse_identifier,
