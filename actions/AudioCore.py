@@ -23,7 +23,7 @@ class InfoContent(enum.Enum):
 
 
 class Device(BaseComboRowItem):
-    def __init__(self, pulse_name, pulse_index, device_name, player_name_obj=None, proc_bin=None, media_name=None):
+    def __init__(self, pulse_name, pulse_index, device_name, player_name_obj=None, proc_bin=None, media_name=None, node_name=None):
         super().__init__()
         self.pulse_name: str = pulse_name
         self.pulse_index: int = pulse_index
@@ -33,6 +33,7 @@ class Device(BaseComboRowItem):
         # Extra fingerprint for sink-input matching (e.g., chromium-based apps)
         self.proc_bin = proc_bin
         self.media_name = media_name
+        self.node_name = node_name
 
     def __str__(self):
         return self.device_name
@@ -230,13 +231,17 @@ class AudioCore(ActionCore):
                 # --- IDENTIFIER LOGIC ---
                 proc_bin = None
                 media_name = None
+                node_name = None
                 if self.device_filter == DeviceFilter.SINK_INPUT.value:
                     # Prefer stable identifiers for applications; fallback to index
                     proc_bin = device.proplist.get('application.process.binary') if hasattr(device, 'proplist') else None
                     app_name = device.proplist.get('application.name') if hasattr(device, 'proplist') else None
                     media_name = device.proplist.get('media.name') if hasattr(device, 'proplist') else None
-                    # Build a stable identifier; prefer binary+media combo to separate chromium-based apps
-                    if proc_bin and media_name:
+                    node_name = device.proplist.get('node.name') if hasattr(device, 'proplist') else None
+                    # Build a stable identifier; prefer binary+node combo to separate chromium-based apps
+                    if proc_bin and node_name:
+                        pulse_identifier = f"{proc_bin}|{node_name}"
+                    elif proc_bin and media_name:
                         pulse_identifier = f"{proc_bin}|{media_name}"
                     else:
                         pulse_identifier = proc_bin or app_name or str(device.index)
@@ -255,6 +260,7 @@ class AudioCore(ActionCore):
                     player_name_obj=getattr(device, "player_name", None),
                     proc_bin=proc_bin,
                     media_name=media_name,
+                    node_name=node_name,
                 )
                 self.loaded_devices.append(new_device)
 
@@ -367,6 +373,7 @@ class AudioCore(ActionCore):
         fallback_index = self.selected_device.pulse_index if self.device_filter == DeviceFilter.SINK_INPUT.value else None
         fallback_proc = self.selected_device.proc_bin if self.device_filter == DeviceFilter.SINK_INPUT.value else None
         fallback_media = self.selected_device.media_name if self.device_filter == DeviceFilter.SINK_INPUT.value else None
+        fallback_node = self.selected_device.node_name if self.device_filter == DeviceFilter.SINK_INPUT.value else None
         volumes = get_volumes_from_device(
             self.device_filter,
             self.selected_device.pulse_name,
@@ -374,6 +381,7 @@ class AudioCore(ActionCore):
             fallback_index,
             fallback_proc,
             fallback_media,
+            fallback_node,
         )
 
         if len(volumes) > 0:
@@ -407,15 +415,13 @@ class AudioCore(ActionCore):
             self.display_icon()
             self.display_device_info()
         elif self.device_filter == DeviceFilter.SINK_INPUT.value:
-            log.debug("pulse_event: app changed (event.index={}, selected.index={}); clearing selection", event.index, index)
-            # Clear selection; user must reselect manually
+            log.debug("pulse_event: app changed (event.index={}, selected.index={}); clearing selection and not reattaching", event.index, index)
             self._suppress_device_changed = True
             self.selected_device = None
             self.device_combo_row.set_selected_item(None)
             self._suppress_device_changed = False
             self._sink_input_lost = True
             self.display_device_info()
-            # Do not alter or reattach automatically
 
     def display_icon(self):
         if not self._current_icon:

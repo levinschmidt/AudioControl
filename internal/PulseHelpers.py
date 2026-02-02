@@ -90,7 +90,7 @@ class PlayerWrapper:
 
 # --------------------------------
 
-def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_index=None, fallback_proc=None, fallback_media=None):
+def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_index=None, fallback_proc=None, fallback_media=None, fallback_node=None):
     """
     Returns a Pulse object OR a Playerctl.Player object depending on filter.
     """
@@ -120,26 +120,29 @@ def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_in
                 # Prefer strict matching on process/app names to avoid grabbing the wrong stream
                 best_candidate = None
                 best_rank = -1
-                fingerprints_provided = bool(fallback_proc or fallback_media or (isinstance(identifier, str) and '|' in identifier))
+                fingerprints_provided = bool(fallback_proc or fallback_media or fallback_node or (isinstance(identifier, str) and '|' in identifier))
                 id_proc = None
                 id_media = None
+                id_node = None
                 if isinstance(identifier, str) and '|' in identifier:
                     parts = identifier.split('|', 1)
-                    id_proc, id_media = parts[0], parts[1]
+                    id_proc, id_node = parts[0], parts[1]
 
                 for sink_input in pulse.sink_input_list():
                     proc_bin = sink_input.proplist.get('application.process.binary')
                     app_name = sink_input.proplist.get('application.name')
                     media_name = sink_input.proplist.get('media.name')
+                    node_name = sink_input.proplist.get('node.name')
                     idx_str = str(sink_input.index)
 
                     rank = None
-                    # Match on explicit proc/media fingerprint if available
-                    if id_proc and proc_bin and id_proc == proc_bin:
-                        if id_media and media_name and id_media == media_name:
-                            rank = 5
-                        else:
-                            rank = 4
+                    # Match on explicit proc|node fingerprint if available
+                    if id_proc and proc_bin and id_proc == proc_bin and id_node and node_name and id_node == node_name:
+                        rank = 6
+                    elif id_proc and proc_bin and id_proc == proc_bin:
+                        rank = 5
+                    elif fallback_node and node_name and fallback_node == node_name and fallback_proc and proc_bin == fallback_proc:
+                        rank = 5
                     elif identifier == proc_bin or fallback_proc == proc_bin:
                         rank = 4
                     elif identifier == app_name or fallback_name == app_name:
@@ -152,11 +155,11 @@ def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_in
                     if rank is not None and rank > best_rank:
                         best_candidate = sink_input
                         best_rank = rank
-                        if rank >= 5:
+                        if rank >= 6:
                             break
 
                 if best_candidate:
-                    # If we had fingerprints, require at least media/app match (>=2) to accept
+                    # If we had fingerprints, require at least node/media/app match (>=2) to accept
                     if fingerprints_provided and best_rank < 2:
                         device = None
                     else:
@@ -181,9 +184,9 @@ def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_in
     return None
 
 
-def get_volumes_from_device(device_filter: DeviceFilter, identifier: str, fallback_name: str | None = None, fallback_index: int | None = None, fallback_proc: str | None = None, fallback_media: str | None = None):
+def get_volumes_from_device(device_filter: DeviceFilter, identifier: str, fallback_name: str | None = None, fallback_index: int | None = None, fallback_proc: str | None = None, fallback_media: str | None = None, fallback_node: str | None = None):
     try:
-        device = get_device(device_filter, identifier, fallback_name, fallback_index, fallback_proc, fallback_media)
+        device = get_device(device_filter, identifier, fallback_name, fallback_index, fallback_proc, fallback_media, fallback_node)
 
         # --- FIX: Safety Check ---
         if device is None:
