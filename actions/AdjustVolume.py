@@ -93,6 +93,8 @@ class AdjustVolume(AudioCore):
                 self.selected_device.pulse_name,
                 self.selected_device.device_name,
                 self.selected_device.pulse_index,
+                getattr(self.selected_device, "proc_bin", None),
+                getattr(self.selected_device, "media_name", None),
             )
 
             if device is None:
@@ -111,6 +113,8 @@ class AdjustVolume(AudioCore):
                 self.selected_device.pulse_name,
                 self.selected_device.device_name,
                 self.selected_device.pulse_index,
+                self.selected_device.proc_bin,
+                self.selected_device.media_name,
             )
             # ------------------------
 

@@ -90,7 +90,7 @@ class PlayerWrapper:
 
 # --------------------------------
 
-def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_index=None):
+def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_index=None, fallback_proc=None, fallback_media=None):
     """
     Returns a Pulse object OR a Playerctl.Player object depending on filter.
     """
@@ -126,11 +126,11 @@ def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_in
                     idx_str = str(sink_input.index)
 
                     rank = None
-                    if identifier == proc_bin or fallback_name == proc_bin:
+                    if identifier == proc_bin or fallback_name == proc_bin or fallback_proc == proc_bin:
                         rank = 4
                     elif identifier == app_name or fallback_name == app_name:
                         rank = 3
-                    elif identifier == media_name or fallback_name == media_name:
+                    elif identifier == media_name or fallback_name == media_name or fallback_media == media_name:
                         rank = 2
                     elif identifier == idx_str or (fallback_name and fallback_name == idx_str):
                         rank = 1
@@ -186,9 +186,9 @@ def get_device_list(filter: DeviceFilter):
         return switch.get(filter.get_value(), {})
 
 
-def get_volumes_from_device(device_filter: DeviceFilter, identifier: str, fallback_name: str | None = None, fallback_index: int | None = None):
+def get_volumes_from_device(device_filter: DeviceFilter, identifier: str, fallback_name: str | None = None, fallback_index: int | None = None, fallback_proc: str | None = None, fallback_media: str | None = None):
     try:
-        device = get_device(device_filter, identifier, fallback_name, fallback_index)
+        device = get_device(device_filter, identifier, fallback_name, fallback_index, fallback_proc, fallback_media)
 
         # --- FIX: Safety Check ---
         if device is None:
