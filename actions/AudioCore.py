@@ -221,8 +221,10 @@ class AudioCore(ActionCore):
 
                 # --- IDENTIFIER LOGIC ---
                 if self.device_filter == DeviceFilter.SINK_INPUT.value:
-                    # Use descriptive name to survive restarts (indices change)
-                    pulse_identifier = device_name
+                    # Prefer stable identifiers for applications; fallback to index
+                    proc_bin = device.proplist.get('application.process.binary') if hasattr(device, 'proplist') else None
+                    app_name = device.proplist.get('application.name') if hasattr(device, 'proplist') else None
+                    pulse_identifier = proc_bin or app_name or str(device.index)
                 elif self.device_filter == DeviceFilter.MUSIC.value:
                     # Store string identifier for persistence; keep PlayerName separately if present
                     pulse_identifier = str(device.name)
