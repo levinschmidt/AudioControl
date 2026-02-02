@@ -145,14 +145,15 @@ def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_in
                 if best_candidate:
                     device = best_candidate[1]
 
-                # If still not found, try numeric identifiers explicitly
-                if device is None and str(identifier).isdigit():
+                # If we have fingerprints but no match, avoid picking a random numeric index
+                allow_numeric_fallback = not (fallback_proc or fallback_media)
+
+                if device is None and allow_numeric_fallback and str(identifier).isdigit():
                     try:
                         device = pulse.sink_input_info(int(identifier))
                     except Exception:
                         device = None
-                # As a last resort, try a provided fallback index
-                if device is None and fallback_index is not None:
+                if device is None and allow_numeric_fallback and fallback_index is not None:
                     try:
                         device = pulse.sink_input_info(int(fallback_index))
                     except Exception:

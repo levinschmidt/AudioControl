@@ -379,16 +379,11 @@ class AudioCore(ActionCore):
             self.display_icon()
             self.display_device_info()
         elif self.device_filter == DeviceFilter.SINK_INPUT.value:
-            # Application (sink-input) index changed (e.g., app restarted). Try to reselect by stable identifier.
-            previous_identifier = self.selected_device.pulse_name
-            previous_name = self.selected_device.device_name
-            self.load_devices()
-            for device in self.loaded_devices:
-                if device.pulse_name == previous_identifier or device.device_name == previous_name:
-                    self.selected_device = device
-                    self.device_combo_row.set_selected_item(device)
-                    self.display_device_info()
-                    break
+            # Application disappeared or got new index; do not auto-pick another
+            self.selected_device = None
+            self.device_combo_row.set_selected_item(None)
+            self.device_combo_row.populate(self.loaded_devices, None)
+            self.display_device_info()
 
     def display_icon(self):
         if not self._current_icon:
