@@ -274,9 +274,11 @@ class AudioCore(ActionCore):
     def device_changed(self, widget, value, old):
         # When selection is cleared (e.g., app vanished), do not auto-select another
         if value is None or value == "":
+            log.debug("device_changed: selection cleared (old=%s)", old)
             self.selected_device = None
             self.display_device_info()
             return
+        log.debug("device_changed: selected %s (old=%s)", getattr(value, "device_name", value), getattr(old, "device_name", old))
         self.selected_device = value
 
         self.display_device_name()
@@ -381,9 +383,11 @@ class AudioCore(ActionCore):
         index = self.selected_device.pulse_index
 
         if event.index == index:
+            log.debug("pulse_event: matched current index %s", index)
             self.display_icon()
             self.display_device_info()
         elif self.device_filter == DeviceFilter.SINK_INPUT.value:
+            log.debug("pulse_event: selected app disappeared or changed (event.index=%s, selected.index=%s); clearing selection", event.index, index)
             # Application disappeared or got new index; do not auto-pick another
             self.selected_device = None
             self.device_combo_row.set_selected_item(None)
