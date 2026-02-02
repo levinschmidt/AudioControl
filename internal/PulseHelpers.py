@@ -1,23 +1,68 @@
 import enum
 import pulsectl
 from loguru import logger as log
+from gi.repository import Gio, GLib
+
 from GtkHelper.ComboRow import SimpleComboRowItem
 
-# --- NEW IMPORTS FOR PLAYERCTL ---
-try:
-    import gi
 
-    gi.require_version('Playerctl', '2.0')
-    from gi.repository import Playerctl
-except ImportError:
-    log.error("Playerctl or PyGObject not found. Music control will not work.")
-    Playerctl = None
-except ValueError:
-    log.error("Playerctl version 2.0 not found.")
-    Playerctl = None
+# --- MPRIS / DBUS HELPERS (Replaces Playerctl) ---
+class MprisPlayer:
+    """
+    A custom wrapper that uses Gio to talk to Music Players via D-Bus.
+    This works natively in Flatpak without needing the playerctl library.
+    """
+
+    def __init__(self, bus_name):
+        self.bus_name = bus_name
+        # Extract simple name (e.g. "spotify") from "org.mpris.MediaPlayer2.spotify"
+        self.name = bus_name.replace("org.mpris.MediaPlayer2.", "")
+
+        # Create a proxy to the player's property interface
+        self.proxy = Gio.DBusProxy.new_for_bus_sync(
+            Gio.BusType.SESSION,
+            Gio.DBusProxyFlags.NONE,
+            None,
+            bus_name,
+            "/org/mpris/MediaPlayer2",
+            "org.mpris.MediaPlayer2.Player",
+            None
+        )
+
+    @property
+    def volume(self):
+        """Returns volume as float 0.0 - 1.0"""
+        try:
+            # Read the cached property
+            v = self.proxy.get_cached_property("Volume")
+            if v:
+                return v.get_double()
+        except Exception:
+            pass
+        return 0.0
+
+    def set_volume(self, value):
+        """Sets volume (float 0.0 - 1.0)"""
+        try:
+            # We must call the DBus Set method directly
+            self.proxy.call_sync(
+                "org.freedesktop.DBus.Properties.Set",
+                GLib.Variant("(ssv)", (
+                    "org.mpris.MediaPlayer2.Player",
+                    "Volume",
+                    GLib.Variant("d", value)
+                )),
+                Gio.DBusCallFlags.NONE,
+                -1,
+                None
+            )
+            # Optimistically update the cached property so UI updates faster
+            self.proxy.set_cached_property("Volume", GLib.Variant("d", value))
+        except Exception as e:
+            log.warning(f"Failed to set volume for {self.name}: {e}")
 
 
-# ---------------------------------
+# -------------------------------------------------
 
 class DeviceFilter(enum.Enum):
     SINK = SimpleComboRowItem("sink", "Sink")
@@ -77,35 +122,21 @@ def filter_proplist(proplist) -> str | None:
     return None
 
 
-# --- HELPER CLASS FOR PLAYERS ---
-class PlayerWrapper:
-    """Makes a Playerctl name look like a Pulse device for compatibility"""
-
-    def __init__(self, name):
-        self.name = name
-        self.index = 0  # Not used for players
-        # Create a fake proplist so filter_proplist can find a name
-        self.proplist = {"application.name": name.capitalize(), "device.description": name}
-
-
-# --------------------------------
-
-def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_index=None, fallback_proc=None, fallback_media=None, fallback_node=None):
+def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_index=None, fallback_proc=None, fallback_media=None,
+               fallback_node=None):
     """
-    Returns a Pulse object OR a Playerctl.Player object depending on filter.
+    Returns a Pulse object OR an MprisPlayer object depending on filter.
     """
     filter_value = _filter_value(filter)
-    # 1. Handle Music Players via Playerctl
+
+    # 1. Handle Music Players via DBus (Gio)
     if filter_value == DeviceFilter.MUSIC.get_value():
-        if Playerctl:
-            try:
-                # FIX: 'new_from_name' requires a PlayerName object, not a string.
-                # We iterate through current players to find the matching object.
-                for name_obj in Playerctl.list_players():
-                    if name_obj.name == identifier:
-                        return Playerctl.Player.new_from_name(name_obj)
-            except Exception as e:
-                log.error(f"Could not create player from name {identifier}: {e}")
+        try:
+            # We reconstruct the full bus name from the identifier (e.g. "spotify")
+            full_name = f"org.mpris.MediaPlayer2.{identifier}"
+            return MprisPlayer(full_name)
+        except Exception as e:
+            log.error(f"Could not create player from name {identifier}: {e}")
         return None
 
     # 2. Handle Standard Pulse Devices
@@ -184,19 +215,17 @@ def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_in
     return None
 
 
-def get_volumes_from_device(device_filter: DeviceFilter, identifier: str, fallback_name: str | None = None, fallback_index: int | None = None, fallback_proc: str | None = None, fallback_media: str | None = None, fallback_node: str | None = None):
+def get_volumes_from_device(device_filter: DeviceFilter, identifier: str, fallback_name: str | None = None, fallback_index: int | None = None,
+                            fallback_proc: str | None = None, fallback_media: str | None = None, fallback_node: str | None = None):
     try:
         device = get_device(device_filter, identifier, fallback_name, fallback_index, fallback_proc, fallback_media, fallback_node)
 
-        # --- FIX: Safety Check ---
         if device is None:
             return []
-        # -------------------------
 
-        # Check for Playerctl (if you kept the music player code)
-        # If you removed playerctl, you can delete this 'if' block and just keep the 'else' logic
-        if 'Playerctl' in globals() and Playerctl and isinstance(device, Playerctl.Player):
-            return [round(device.props.volume * 100)]
+        # Handle MprisPlayer
+        if isinstance(device, MprisPlayer):
+            return [round(device.volume * 100)]
 
         # Standard PulseAudio Logic
         device_volumes = device.volume.values
@@ -208,17 +237,15 @@ def get_volumes_from_device(device_filter: DeviceFilter, identifier: str, fallba
 
 
 def change_volume(device, adjust):
-    # Helper: Check if it is a Playerctl object
-    is_player = Playerctl and isinstance(device, Playerctl.Player)
-
     if device is None:
         log.error("change_volume called with no device")
         return
 
-    if is_player:
+    # Check if it is our custom MprisPlayer
+    if isinstance(device, MprisPlayer):
         try:
             # Convert integer adjust (e.g. 5) to float (0.05)
-            current = device.props.volume
+            current = device.volume
             new_vol = max(0.0, min(1.0, current + (adjust / 100.0)))
             device.set_volume(new_vol)
         except Exception as e:
@@ -233,13 +260,12 @@ def change_volume(device, adjust):
 
 
 def set_volume(device, volume):
-    is_player = Playerctl and isinstance(device, Playerctl.Player)
-
     if device is None:
         log.error("set_volume called with no device")
         return
 
-    if is_player:
+    # Check if it is our custom MprisPlayer
+    if isinstance(device, MprisPlayer):
         try:
             # Volume is 0-100 coming in, needs 0.0-1.0
             device.set_volume(volume / 100.0)
@@ -253,9 +279,7 @@ def set_volume(device, volume):
                 log.error(f"Error setting pulse volume: {e}")
 
 
-# ... (Keep mute, set_default_device, get_standard_device as they were) ...
 def mute(device, state):
-    # (If you want playerctl mute support, add it here too, otherwise keep existing)
     with pulsectl.Pulse("change-volume") as pulse:
         try:
             pulse.mute(device, state)
@@ -274,16 +298,33 @@ def get_standard_device(device_filter):
 
 
 def get_device_list(filter: DeviceFilter):
+    # 1. List Music Players (Via DBus / Gio)
     if filter.get_value() == DeviceFilter.MUSIC.get_value():
-        if not Playerctl:
-            return []
+        players = []
         try:
-            player_names = Playerctl.list_players()
-            return [PlayerWrapper(name.name) for name in player_names]
+            # Connect to DBus and list all names
+            conn = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+            result = conn.call_sync(
+                "org.freedesktop.DBus",
+                "/org/freedesktop/DBus",
+                "org.freedesktop.DBus",
+                "ListNames",
+                None,
+                GLib.VariantType("(as)"),
+                Gio.DBusCallFlags.NONE,
+                -1,
+                None
+            )
+            names = result.unpack()[0]
+            # Filter for media players
+            for name in names:
+                if name.startswith("org.mpris.MediaPlayer2."):
+                    players.append(MprisPlayer(name))
         except Exception as e:
-            log.error(f"Error listing players: {e}")
-            return []
+            log.error(f"Error listing DBus players: {e}")
+        return players
 
+    # 2. List Pulse Devices
     with pulsectl.Pulse("device-list-getter") as pulse:
         switch = {
             DeviceFilter.SINK.get_value(): pulse.sink_list(),
