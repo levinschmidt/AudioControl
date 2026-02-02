@@ -388,11 +388,30 @@ class AudioCore(ActionCore):
                 return
             self._disconnect_player_signal()
             self._player_object = player
-            self._player_volume_handler_id = player.connect("volume-changed", self._on_player_volume_changed)
+
+            handler_id = None
+            # Try native volume signal first
+            try:
+                handler_id = player.connect("volume", self._on_player_volume_changed)
+                used_signal = "volume"
+            except Exception:
+                handler_id = None
+                used_signal = None
+            # Fallback to property notify signal
+            if handler_id is None:
+                try:
+                    handler_id = player.connect("notify::volume", self._on_player_volume_changed)
+                    used_signal = "notify::volume"
+                except Exception:
+                    handler_id = None
+                    used_signal = None
+            self._player_volume_handler_id = handler_id
+            if handler_id:
+                log.debug(f"Player volume signal connected using '{used_signal}'")
+            else:
+                log.debug("Player volume signal not available; polling only")
         except Exception as e:
             log.debug(f"Could not connect to player signals: {e}")
-        self._player_volume_handler_id = player.connect("volume-changed", self._on_player_volume_changed)
-        log.debug(f"Player signal connected: {self._player_volume_handler_id}")
 
     def _disconnect_player_signal(self):
         if self._player_object and self._player_volume_handler_id:
@@ -403,8 +422,8 @@ class AudioCore(ActionCore):
         self._player_object = None
         self._player_volume_handler_id = None
 
-    def _on_player_volume_changed(self, player, value):
+    def _on_player_volume_changed(self, player, *args):
         # Update immediately on signal, then throttle subsequent polls
-        log.debug(f"Signal volume-changed: {value}")
+        log.debug("Signal volume change received")
         self._last_volume_refresh = time.monotonic()
         self.display_device_info()
