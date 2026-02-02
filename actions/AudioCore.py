@@ -1,4 +1,5 @@
 import enum
+import time
 
 from loguru import logger as log
 
@@ -12,14 +13,6 @@ from ..internal.PulseHelpers import DeviceFilter, get_device, get_device_list, f
     get_standard_device
 
 
-try:
-    import gi
-    gi.require_version('Playerctl', '2.0')
-    from gi.repository import Playerctl
-except:
-    Playerctl = None
-
-
 class InfoContent(enum.Enum):
     VOLUME = SimpleComboRowItem("volume", "Volume")
     ADJUSTMENT = SimpleComboRowItem("adjustment", "Adjustment")
@@ -31,8 +24,6 @@ class Device(BaseComboRowItem):
         self.pulse_name: str = pulse_name
         self.pulse_index: int = pulse_index
         self.device_name: str = device_name
-        self.current_player_obj = None
-        self.player_signal_id = None
 
     def __str__(self):
         return self.device_name
@@ -73,6 +64,9 @@ class AudioCore(ActionCore):
 
         self._current_icon = None
         self._icon_name = ""
+
+        # Throttle for periodic volume refresh (primarily for Playerctl players)
+        self._last_volume_refresh = 0.0
 
         self.create_event_assigners()
 
@@ -191,6 +185,13 @@ class AudioCore(ActionCore):
 
     def on_tick(self):
         self.check_standard_device()
+        # Playerctl volumes have no Pulse events; poll periodically to update the UI
+        if self.show_info_content and self.info_content == InfoContent.VOLUME.value and \
+                self.device_filter == DeviceFilter.MUSIC.value and self.selected_device:
+            now = time.monotonic()
+            if now - self._last_volume_refresh >= 1.0:
+                self._last_volume_refresh = now
+                self.display_device_info()
 
     def load_devices(self):
         try:
@@ -213,9 +214,8 @@ class AudioCore(ActionCore):
                     # Pulse Applications use Index
                     pulse_identifier = str(device.index)
                 elif self.device_filter == DeviceFilter.MUSIC.value:
-                    # Playerctl Players use Name (e.g. 'spotify')
-                    # My PlayerWrapper class stores this in .name
-                    pulse_identifier = device.name
+                    # Prefer the original PlayerName when available (falls back to string name)
+                    pulse_identifier = getattr(device, "player_name", device.name)
                 else:
                     # Pulse Sinks/Sources use Name
                     pulse_identifier = device.name
@@ -247,38 +247,8 @@ class AudioCore(ActionCore):
     def device_changed(self, widget, value, old):
         self.selected_device = value
 
-        # --- NEW CODE START ---
-        # 1. Clean up old signal if it exists
-        if self.current_player_obj and self.player_signal_id:
-            try:
-                self.current_player_obj.disconnect(self.player_signal_id)
-            except Exception:
-                pass
-            self.current_player_obj = None
-            self.player_signal_id = None
-
-        # 2. If the new device is a Music Player, connect to it
-        if self.device_filter == DeviceFilter.MUSIC.value and Playerctl:
-            try:
-                # Use your helper to get the actual Playerctl object
-                # value.pulse_name holds the player name (e.g., 'spotify')
-                player = get_device(DeviceFilter.MUSIC, value.pulse_name)
-
-                if player:
-                    self.current_player_obj = player
-                    # Connect to the volume change signal
-                    self.player_signal_id = player.connect("notify::volume", self.on_player_event)
-            except Exception as e:
-                log.error(f"Failed to attach signal to player: {e}")
-        # --- NEW CODE END ---
-
         self.display_device_name()
         self.display_device_info()
-
-    def on_player_event(self, player, *args):
-        # Trigger the standard display updates
-        self.display_device_info()
-        self.display_icon()
 
     def show_info_content_changed(self, widget, value, old):
         self.show_info_content = value
