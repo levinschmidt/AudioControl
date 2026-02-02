@@ -139,19 +139,22 @@ def get_volumes_from_device(device_filter: DeviceFilter, identifier: str):
     try:
         device = get_device(device_filter, identifier)
 
-        # Helper: Check if it is a Playerctl object
-        is_player = Playerctl and isinstance(device, Playerctl.Player)
+        # --- FIX: Safety Check ---
+        if device is None:
+            return []
+        # -------------------------
 
-        if is_player:
-            # Playerctl volume is 0.0 to 1.0. Convert to 0-100
+        # Check for Playerctl (if you kept the music player code)
+        # If you removed playerctl, you can delete this 'if' block and just keep the 'else' logic
+        if 'Playerctl' in globals() and Playerctl and isinstance(device, Playerctl.Player):
             return [round(device.props.volume * 100)]
-        else:
-            # PulseAudio logic
-            device_volumes = device.volume.values
-            return [round(vol * 100) for vol in device_volumes]
+
+        # Standard PulseAudio Logic
+        device_volumes = device.volume.values
+        return [round(vol * 100) for vol in device_volumes]
 
     except Exception as e:
-        log.error(f"Error getting volumes: {e}")
+        log.error(f"Error while getting volumes from device: {identifier} with filter: {device_filter}. Error: {e}")
         return []
 
 
