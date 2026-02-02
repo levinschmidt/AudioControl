@@ -291,6 +291,7 @@ class AudioCore(ActionCore):
         self.load_devices()
 
     def device_changed(self, widget, value, old):
+        print(self)
         if self._suppress_device_changed:
             log.debug("device_changed suppressed (value={}, old={})", value, old)
             if value not in (None, ""):
