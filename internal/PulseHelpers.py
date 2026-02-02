@@ -30,6 +30,16 @@ class DeviceFilter(enum.Enum):
         return self.value.get_value()
 
 
+def _filter_value(filter_obj):
+    # Normalize filter to its underlying string value
+    if isinstance(filter_obj, DeviceFilter):
+        return filter_obj.get_value()
+    try:
+        return filter_obj.get_value()
+    except AttributeError:
+        return filter_obj
+
+
 def filter_proplist(proplist) -> str | None:
     # Existing filter logic...
     filters: list[str] = [
@@ -86,7 +96,7 @@ def get_device(filter: DeviceFilter, identifier):
     """
     filter_value = _filter_value(filter)
     # 1. Handle Music Players via Playerctl
-    if filter == DeviceFilter.MUSIC.get_value():
+    if filter_value == DeviceFilter.MUSIC.get_value():
         if Playerctl:
             try:
                 # FIX: 'new_from_name' requires a PlayerName object, not a string.
