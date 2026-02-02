@@ -226,6 +226,8 @@ class AudioCore(ActionCore):
                     continue
 
                 # --- IDENTIFIER LOGIC ---
+                proc_bin = None
+                media_name = None
                 if self.device_filter == DeviceFilter.SINK_INPUT.value:
                     # Prefer stable identifiers for applications; fallback to index
                     proc_bin = device.proplist.get('application.process.binary') if hasattr(device, 'proplist') else None
@@ -277,6 +279,9 @@ class AudioCore(ActionCore):
     def device_changed(self, widget, value, old):
         if self._suppress_device_changed:
             log.debug("device_changed suppressed (value=%s, old=%s)", value, old)
+            # Drop suppression once a real selection comes in
+            if value not in (None, ""):
+                self._suppress_device_changed = False
             return
         # When selection is cleared (e.g., app vanished), do not auto-select another
         if value is None or value == "":
@@ -396,15 +401,13 @@ class AudioCore(ActionCore):
             self.display_device_info()
         elif self.device_filter == DeviceFilter.SINK_INPUT.value:
             log.debug("pulse_event: selected app disappeared or changed (event.index=%s, selected.index=%s); clearing selection", event.index, index)
-            # Application disappeared or got new index; do not auto-pick another
             if self._sink_input_lost:
                 return
             self._sink_input_lost = True
             self._suppress_device_changed = True
             self.selected_device = None
             self.device_combo_row.set_selected_item(None)
-            self.device_combo_row.populate(self.loaded_devices, "")
-            self._suppress_device_changed = False
+            # Do not repopulate to avoid auto-selecting another item
             self.display_device_info()
 
     def display_icon(self):
