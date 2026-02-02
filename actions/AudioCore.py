@@ -78,6 +78,8 @@ class AudioCore(ActionCore):
         self._last_volume_refresh = 0.0
         self._player_volume_handler_id = None
         self._player_object = None
+        # Prevent repeated clears when a sink-input disappears
+        self._sink_input_lost = False
 
         self.create_event_assigners()
 
@@ -276,10 +278,12 @@ class AudioCore(ActionCore):
         if value is None or value == "":
             log.debug("device_changed: selection cleared (old=%s)", old)
             self.selected_device = None
+            self._sink_input_lost = True
             self.display_device_info()
             return
         log.debug("device_changed: selected %s (old=%s)", getattr(value, "device_name", value), getattr(old, "device_name", old))
         self.selected_device = value
+        self._sink_input_lost = False
 
         self.display_device_name()
         self.display_device_info()
@@ -389,6 +393,9 @@ class AudioCore(ActionCore):
         elif self.device_filter == DeviceFilter.SINK_INPUT.value:
             log.debug("pulse_event: selected app disappeared or changed (event.index=%s, selected.index=%s); clearing selection", event.index, index)
             # Application disappeared or got new index; do not auto-pick another
+            if self._sink_input_lost:
+                return
+            self._sink_input_lost = True
             self.selected_device = None
             self.device_combo_row.set_selected_item(None)
             self.device_combo_row.populate(self.loaded_devices, "")
