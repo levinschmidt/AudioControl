@@ -81,6 +81,7 @@ class AudioCore(ActionCore):
         # Prevent repeated clears when a sink-input disappears
         self._sink_input_lost = False
         self._suppress_device_changed = False
+        # Block selection changes from non-UI events
         self._block_selection_until = 0.0
 
         self.create_event_assigners()
@@ -284,30 +285,19 @@ class AudioCore(ActionCore):
     def device_changed(self, widget, value, old):
         if self._suppress_device_changed:
             log.debug("device_changed suppressed (value={}, old={})", value, old)
-            # Drop suppression once a real selection comes in
             if value not in (None, ""):
-                self.device_combo_row.set_selected_item(None)
-                self.display_device_info()
                 self._suppress_device_changed = False
-            return
-        if self._block_selection_until and time.monotonic() < self._block_selection_until and value not in (None, ""):
-            log.debug("device_changed: debouncing re-selection (value={}, old={})", value, old)
-            self._suppress_device_changed = True
-            self.device_combo_row.set_selected_item(None)
-            self._suppress_device_changed = False
             return
         # When selection is cleared (e.g., app vanished), do not auto-select another
         if value is None or value == "":
             log.debug("device_changed: selection cleared (old={})", old)
             self.selected_device = None
             self._sink_input_lost = True
-            self._block_selection_until = time.monotonic() + 0.5
             self.display_device_info()
             return
         log.debug("device_changed: selected {} (old={})", getattr(value, "device_name", value), getattr(old, "device_name", old))
         self.selected_device = value
         self._sink_input_lost = False
-        self._block_selection_until = 0.0
 
         self.display_device_name()
         self.display_device_info()
@@ -415,17 +405,9 @@ class AudioCore(ActionCore):
             self.display_icon()
             self.display_device_info()
         elif self.device_filter == DeviceFilter.SINK_INPUT.value:
-            log.debug("pulse_event: selected app disappeared or changed (event.index={}, selected.index={}); clearing selection", event.index, index)
-            if self._sink_input_lost:
-                return
+            log.debug("pulse_event: app changed (event.index={}, selected.index={}); leaving selection unchanged", event.index, index)
             self._sink_input_lost = True
-            self._suppress_device_changed = True
-            self._block_selection_until = time.monotonic() + 0.5
-            self.selected_device = None
-            self.device_combo_row.set_selected_item(None)
-            # Do not repopulate to avoid auto-selecting another item
-            self._suppress_device_changed = False
-            self.display_device_info()
+            # Do not alter UI selection automatically
 
     def display_icon(self):
         if not self._current_icon:
