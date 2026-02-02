@@ -20,7 +20,7 @@ from GtkHelper.GenerativeUI.ExpanderRow import ExpanderRow
 from GtkHelper.GenerativeUI.SwitchRow import SwitchRow
 from src.backend.PluginManager.ActionCore import ActionCore
 from ..internal.PulseHelpers import DeviceFilter, get_device, get_device_list, filter_proplist, get_volumes_from_device, \
-    get_standard_device
+    get_standard_device, MprisPlayer
 
 
 class InfoContent(enum.Enum):
@@ -218,72 +218,44 @@ class AudioCore(ActionCore):
             self.loaded_devices = []
 
             for device in device_list:
+                # --- FIX: Handle Music Players First ---
+                if isinstance(device, MprisPlayer):
+                    # Music players don't have 'proplist', so we handle them separately
+                    pulse_identifier = device.name  # e.g. "spotify"
+                    device_name = device.name.capitalize()
+
+                    self.loaded_devices.append(Device(
+                        pulse_name=pulse_identifier,
+                        pulse_index=0,  # Players don't use numeric indexes
+                        device_name=device_name
+                    ))
+                    continue
+                # ---------------------------------------
+
+                # Standard PulseAudio Logic (Sinks, Sources, Apps)
                 if hasattr(device, 'description') and "Monitor" in str(device.description):
                     continue
 
                 device_name = filter_proplist(device.proplist)
+
                 if device_name is None:
                     continue
 
-                # --- IDENTIFIER LOGIC ---
-                proc_bin = None
-                media_name = None
-                node_name = None
-
-                pulse_identifier = device.name
-
                 if self.device_filter == DeviceFilter.SINK_INPUT.value:
-                    # Prefer stable identifiers for applications
-                    proc_bin = device.proplist.get('application.process.binary') if hasattr(device, 'proplist') else None
-                    media_name = device.proplist.get('media.name') if hasattr(device, 'proplist') else None
-                    node_name = device.proplist.get('node.name') if hasattr(device, 'proplist') else None
+                    pulse_identifier = str(device.index)
+                else:
+                    pulse_identifier = device.name
 
-                    if proc_bin:
-                        if node_name:
-                            pulse_identifier = f"{proc_bin}|{node_name}"
-                        elif media_name:
-                            pulse_identifier = f"{proc_bin}|{media_name}"
-                        else:
-                            pulse_identifier = proc_bin
-
-                elif self.device_filter == DeviceFilter.MUSIC.value:
-                    pulse_identifier = str(device.name)
-                # ------------------------
-
-                new_device = Device(
+                self.loaded_devices.append(Device(
                     pulse_name=pulse_identifier,
                     pulse_index=device.index,
-                    device_name=device_name,
-                    player_name_obj=getattr(device, "player_name", None),
-                    proc_bin=proc_bin,
-                    media_name=media_name,
-                    node_name=node_name,
-                )
-                self.loaded_devices.append(new_device)
-
-            log.debug("load_devices: filter={}, entries={}", self.device_filter, len(self.loaded_devices))
+                    device_name=device_name
+                ))
         except Exception as e:
             log.error(f"Error while populating device list: {e}")
             return
 
-        # --- RECONNECTION LOGIC ---
-        target_value = self._saved_pulse_id or self.device_combo_row.get_value()
-        self.device_combo_row.populate(self.loaded_devices, target_value if target_value else "")
-
-        found_target = False
-        if target_value:
-            for dev in self.loaded_devices:
-                if dev.pulse_name == target_value:
-                    self.selected_device = dev
-                    self.device_combo_row.set_selected_item(dev)
-                    self._sink_input_lost = False
-                    found_target = True
-                    break
-
-        if not found_target and not self.device_combo_row.get_value():
-            self.device_combo_row.set_selected_item(None)
-
-        # Immediate display update
+        self.device_combo_row.populate(self.loaded_devices, self.device_combo_row.get_value())
         self.display_device_info()
 
     # UI Events
@@ -315,7 +287,6 @@ class AudioCore(ActionCore):
             self.display_device_info()
             return
 
-        log.debug("device_changed: selected {} (old={})", getattr(value, "device_name", value), getattr(old, "device_name", old))
         self.selected_device = value
         self._sink_input_lost = False
 
