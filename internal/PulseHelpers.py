@@ -118,19 +118,34 @@ def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_in
                 device = pulse.get_source_by_name(identifier)
             elif filter_value == DeviceFilter.SINK_INPUT.get_value():
                 # Prefer name-based resolution first to avoid stale indices after restart
+                best_candidate = None
                 for sink_input in pulse.sink_input_list():
                     best_name = filter_proplist(sink_input.proplist)
+                    app_name = sink_input.proplist.get('application.name')
+                    media_name = sink_input.proplist.get('media.name')
+                    proc_bin = sink_input.proplist.get('application.process.binary')
                     names = {
                         str(sink_input.index),
                         best_name,
-                        sink_input.proplist.get('application.name'),
-                        sink_input.proplist.get('media.name'),
-                        sink_input.proplist.get('application.process.binary'),
+                        app_name,
+                        media_name,
+                        proc_bin,
                         fallback_name,
                     }
                     if identifier in names or (fallback_name and fallback_name in names):
-                        device = sink_input
-                        break
+                        # Prefer process binary and application name over others
+                        rank = 0
+                        if identifier == proc_bin or fallback_name == proc_bin:
+                            rank += 3
+                        if identifier == app_name or fallback_name == app_name:
+                            rank += 2
+                        if identifier == media_name or fallback_name == media_name:
+                            rank += 1
+                        best_candidate = (rank, sink_input)
+                        if rank >= 3:
+                            break
+                if best_candidate:
+                    device = best_candidate[1]
                 # If still not found, try numeric identifiers explicitly
                 if device is None and str(identifier).isdigit():
                     try:
@@ -199,6 +214,10 @@ def change_volume(device, adjust):
     # Helper: Check if it is a Playerctl object
     is_player = Playerctl and isinstance(device, Playerctl.Player)
 
+    if device is None:
+        log.error("change_volume called with no device")
+        return
+
     if is_player:
         try:
             # Convert integer adjust (e.g. 5) to float (0.05)
@@ -218,6 +237,10 @@ def change_volume(device, adjust):
 
 def set_volume(device, volume):
     is_player = Playerctl and isinstance(device, Playerctl.Player)
+
+    if device is None:
+        log.error("set_volume called with no device")
+        return
 
     if is_player:
         try:
