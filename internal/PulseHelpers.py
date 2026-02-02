@@ -88,9 +88,11 @@ def get_device(filter: DeviceFilter, identifier):
     if filter == DeviceFilter.MUSIC.get_value():
         if Playerctl:
             try:
-                # 'identifier' here will be the player name (e.g., 'spotify')
-                player = Playerctl.Player.new_from_name(identifier)
-                return player
+                # FIX: 'new_from_name' requires a PlayerName object, not a string.
+                # We iterate through current players to find the matching object.
+                for name_obj in Playerctl.list_players():
+                    if name_obj.name == identifier:
+                        return Playerctl.Player.new_from_name(name_obj)
             except Exception as e:
                 log.error(f"Could not create player from name {identifier}: {e}")
         return None
