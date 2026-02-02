@@ -286,6 +286,8 @@ class AudioCore(ActionCore):
             log.debug("device_changed suppressed (value={}, old={})", value, old)
             # Drop suppression once a real selection comes in
             if value not in (None, ""):
+                self.device_combo_row.set_selected_item(None)
+                self.display_device_info()
                 self._suppress_device_changed = False
             return
         if self._block_selection_until and time.monotonic() < self._block_selection_until and value not in (None, ""):
