@@ -117,35 +117,34 @@ def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_in
             elif filter_value == DeviceFilter.SOURCE.get_value():
                 device = pulse.get_source_by_name(identifier)
             elif filter_value == DeviceFilter.SINK_INPUT.get_value():
-                # Prefer name-based resolution first to avoid stale indices after restart
+                # Prefer strict matching on process/app names to avoid grabbing the wrong stream
                 best_candidate = None
                 for sink_input in pulse.sink_input_list():
-                    best_name = filter_proplist(sink_input.proplist)
+                    proc_bin = sink_input.proplist.get('application.process.binary')
                     app_name = sink_input.proplist.get('application.name')
                     media_name = sink_input.proplist.get('media.name')
-                    proc_bin = sink_input.proplist.get('application.process.binary')
-                    names = {
-                        str(sink_input.index),
-                        best_name,
-                        app_name,
-                        media_name,
-                        proc_bin,
-                        fallback_name,
-                    }
-                    if identifier in names or (fallback_name and fallback_name in names):
-                        # Prefer process binary and application name over others
-                        rank = 0
-                        if identifier == proc_bin or fallback_name == proc_bin:
-                            rank += 3
-                        if identifier == app_name or fallback_name == app_name:
-                            rank += 2
-                        if identifier == media_name or fallback_name == media_name:
-                            rank += 1
-                        best_candidate = (rank, sink_input)
-                        if rank >= 3:
+                    idx_str = str(sink_input.index)
+
+                    rank = None
+                    if identifier == proc_bin or fallback_name == proc_bin:
+                        rank = 4
+                    elif identifier == app_name or fallback_name == app_name:
+                        rank = 3
+                    elif identifier == media_name or fallback_name == media_name:
+                        rank = 2
+                    elif identifier == idx_str or (fallback_name and fallback_name == idx_str):
+                        rank = 1
+
+                    if rank is not None:
+                        candidate = (rank, sink_input)
+                        if best_candidate is None or candidate[0] > best_candidate[0]:
+                            best_candidate = candidate
+                        if rank >= 4:
                             break
+
                 if best_candidate:
                     device = best_candidate[1]
+
                 # If still not found, try numeric identifiers explicitly
                 if device is None and str(identifier).isdigit():
                     try:

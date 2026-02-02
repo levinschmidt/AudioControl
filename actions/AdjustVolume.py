@@ -95,6 +95,10 @@ class AdjustVolume(AudioCore):
                 self.selected_device.pulse_index,
             )
 
+            if device is None:
+                self.show_error(1)
+                return
+
             if adjustment < 0:
                 change_volume(device, adjustment)
                 return
