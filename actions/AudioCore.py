@@ -81,6 +81,7 @@ class AudioCore(ActionCore):
         # Prevent repeated clears when a sink-input disappears
         self._sink_input_lost = False
         self._suppress_device_changed = False
+        self._ignore_next_selection = False
 
         self.create_event_assigners()
 
@@ -287,16 +288,24 @@ class AudioCore(ActionCore):
             if value not in (None, ""):
                 self._suppress_device_changed = False
             return
-        # When selection is cleared (e.g., app vanished), do not auto-select another
-        if value is None or value == "":
-            log.debug("device_changed: selection cleared (old={})", old)
-            self.selected_device = None
-            self._sink_input_lost = True
-            self.display_device_info()
+        if self._ignore_next_selection and value not in (None, ""):
+            log.debug("device_changed: ignoring first re-selection after loss (value={}, old={})", value, old)
+            self._ignore_next_selection = False
+            self._suppress_device_changed = True
+            self.device_combo_row.set_selected_item(None)
+            self._suppress_device_changed = False
             return
-        log.debug("device_changed: selected {} (old={})", getattr(value, "device_name", value), getattr(old, "device_name", old))
-        self.selected_device = value
-        self._sink_input_lost = False
+         # When selection is cleared (e.g., app vanished), do not auto-select another
+         if value is None or value == "":
+             log.debug("device_changed: selection cleared (old={})", old)
+             self.selected_device = None
+             self._sink_input_lost = True
+             self.display_device_info()
+             return
+         log.debug("device_changed: selected {} (old={})", getattr(value, "device_name", value), getattr(old, "device_name", old))
+         self.selected_device = value
+         self._sink_input_lost = False
++        self._ignore_next_selection = False
 
         self.display_device_name()
         self.display_device_info()
@@ -409,9 +418,11 @@ class AudioCore(ActionCore):
                 return
             self._sink_input_lost = True
             self._suppress_device_changed = True
+            self._ignore_next_selection = True
             self.selected_device = None
             self.device_combo_row.set_selected_item(None)
             # Do not repopulate to avoid auto-selecting another item
+            self._suppress_device_changed = False
             self.display_device_info()
 
     def display_icon(self):
