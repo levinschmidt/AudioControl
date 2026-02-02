@@ -94,7 +94,11 @@ class AdjustVolume(AudioCore):
                 change_volume(device, adjustment)
                 return
 
-            volumes = get_volumes_from_device(self.device_filter, device.name)
+            # --- CHANGE THIS LINE ---
+            # Old: volumes = get_volumes_from_device(self.device_filter, device.name)
+            # New: Use self.selected_device.pulse_name to pass the correct ID
+            volumes = get_volumes_from_device(self.device_filter, self.selected_device.pulse_name)
+            # ------------------------
 
             if len(volumes) > 0 and volumes[0] < self.bounds:
                 if volumes[0] + adjustment > self.bounds:

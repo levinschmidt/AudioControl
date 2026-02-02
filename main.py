@@ -127,7 +127,8 @@ class AudioControl(PluginBase):
             self,
             "com_gapls_AudioControl::PulseEvent",
             pulsectl.PulseEventMaskEnum.sink,
-            pulsectl.PulseEventMaskEnum.source
+            pulsectl.PulseEventMaskEnum.source,
+            pulsectl.PulseEventMaskEnum.sink_input
         )
         self.add_event_holder(self.pulse_sink_event_holder)
 
