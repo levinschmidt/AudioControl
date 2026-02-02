@@ -9,12 +9,15 @@ from GtkHelper.ComboRow import SimpleComboRowItem
 class DeviceFilter(enum.Enum):
     SINK = SimpleComboRowItem("sink", "Sink")
     SOURCE = SimpleComboRowItem("source", "Source")
+    # Added Application (Sink Input)
+    SINK_INPUT = SimpleComboRowItem("sink-input", "Application")
 
     def get_value(self):
         return self.value.get_value()
 
 def filter_proplist(proplist) -> str | None:
     filters: list[str] = [
+        "application.name", # Priority for Apps
         "alsa.card_name",
         "alsa.long_card_name",
         "node.name",
@@ -64,6 +67,9 @@ def get_device(filter: DeviceFilter, pulse_device_name):
                 device = pulse.get_sink_by_name(pulse_device_name)
             elif filter == DeviceFilter.SOURCE.get_value():
                 device = pulse.get_source_by_name(pulse_device_name)
+            # Fetch Application by ID (passed as string)
+            elif filter == DeviceFilter.SINK_INPUT.get_value():
+                device = pulse.sink_input_info(int(pulse_device_name))
             return device
         except Exception as e:
             log.error(f"Error while getting device: {pulse_device_name} with filter: {filter}. Error: {e}")
@@ -75,6 +81,8 @@ def get_device_list(filter: DeviceFilter):
         switch = {
             DeviceFilter.SINK.get_value(): pulse.sink_list(),
             DeviceFilter.SOURCE.get_value(): pulse.source_list(),
+            # Add Sink Input List
+            DeviceFilter.SINK_INPUT.get_value(): pulse.sink_input_list(),
         }
         return switch.get(filter.get_value(), {})
 
