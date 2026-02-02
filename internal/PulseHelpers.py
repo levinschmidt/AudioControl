@@ -117,32 +117,32 @@ def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_in
             elif filter_value == DeviceFilter.SOURCE.get_value():
                 device = pulse.get_source_by_name(identifier)
             elif filter_value == DeviceFilter.SINK_INPUT.get_value():
-                # identifier may be index or descriptive name; try identifier as index first
-                try:
-                    device = pulse.sink_input_info(int(identifier))
-                except Exception:
-                    device = None
-                # Next try stable fallback index if provided
+                # Prefer name-based resolution first to avoid stale indices after restart
+                for sink_input in pulse.sink_input_list():
+                    best_name = filter_proplist(sink_input.proplist)
+                    names = {
+                        str(sink_input.index),
+                        best_name,
+                        sink_input.proplist.get('application.name'),
+                        sink_input.proplist.get('media.name'),
+                        sink_input.proplist.get('application.process.binary'),
+                        fallback_name,
+                    }
+                    if identifier in names or (fallback_name and fallback_name in names):
+                        device = sink_input
+                        break
+                # If still not found, try numeric identifiers explicitly
+                if device is None and str(identifier).isdigit():
+                    try:
+                        device = pulse.sink_input_info(int(identifier))
+                    except Exception:
+                        device = None
+                # As a last resort, try a provided fallback index
                 if device is None and fallback_index is not None:
                     try:
                         device = pulse.sink_input_info(int(fallback_index))
                     except Exception:
                         device = None
-                # Finally match by descriptive names
-                if device is None:
-                    for sink_input in pulse.sink_input_list():
-                        best_name = filter_proplist(sink_input.proplist)
-                        names = {
-                            str(sink_input.index),
-                            best_name,
-                            sink_input.proplist.get('application.name'),
-                            sink_input.proplist.get('media.name'),
-                            sink_input.proplist.get('application.process.binary'),
-                            fallback_name,
-                        }
-                        if identifier in names or (fallback_name and fallback_name in names):
-                            device = sink_input
-                            break
             return device
         except Exception as e:
             log.error(f"Error while getting device: {identifier} with filter: {filter}. Error: {e}")
