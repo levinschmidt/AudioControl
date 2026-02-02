@@ -126,11 +126,11 @@ def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_in
                     idx_str = str(sink_input.index)
 
                     rank = None
-                    if identifier == proc_bin or fallback_name == proc_bin or fallback_proc == proc_bin:
+                    if identifier == proc_bin or fallback_proc == proc_bin:
                         rank = 4
                     elif identifier == app_name or fallback_name == app_name:
                         rank = 3
-                    elif identifier == media_name or fallback_name == media_name or fallback_media == media_name:
+                    elif identifier == media_name or fallback_media == media_name:
                         rank = 2
                     elif identifier == idx_str or (fallback_name and fallback_name == idx_str):
                         rank = 1
@@ -161,29 +161,6 @@ def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_in
         except Exception as e:
             log.error(f"Error while getting device: {identifier} with filter: {filter}. Error: {e}")
     return None
-
-
-def get_device_list(filter: DeviceFilter):
-    # 1. List Music Players
-    if filter.get_value() == DeviceFilter.MUSIC.get_value():
-        if not Playerctl:
-            return []
-        try:
-            player_names = Playerctl.list_players()
-            # Wrap them so they look like Pulse devices to the rest of the app
-            return [PlayerWrapper(name.name) for name in player_names]
-        except Exception as e:
-            log.error(f"Error listing players: {e}")
-            return []
-
-    # 2. List Pulse Devices
-    with pulsectl.Pulse("device-list-getter") as pulse:
-        switch = {
-            DeviceFilter.SINK.get_value(): pulse.sink_list(),
-            DeviceFilter.SOURCE.get_value(): pulse.source_list(),
-            DeviceFilter.SINK_INPUT.get_value(): pulse.sink_input_list(),
-        }
-        return switch.get(filter.get_value(), {})
 
 
 def get_volumes_from_device(device_filter: DeviceFilter, identifier: str, fallback_name: str | None = None, fallback_index: int | None = None, fallback_proc: str | None = None, fallback_media: str | None = None):
