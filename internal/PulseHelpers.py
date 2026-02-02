@@ -11,6 +11,7 @@ class DeviceFilter(enum.Enum):
     SOURCE = SimpleComboRowItem("source", "Source")
     # Added Application (Sink Input)
     SINK_INPUT = SimpleComboRowItem("sink-input", "Application")
+    MUSIC = SimpleComboRowItem("music", "Music Player")
 
     def get_value(self):
         return self.value.get_value()
@@ -67,8 +68,7 @@ def get_device(filter: DeviceFilter, pulse_device_name):
                 device = pulse.get_sink_by_name(pulse_device_name)
             elif filter == DeviceFilter.SOURCE.get_value():
                 device = pulse.get_source_by_name(pulse_device_name)
-            # Fetch Application by ID (passed as string)
-            elif filter == DeviceFilter.SINK_INPUT.get_value():
+            elif filter == DeviceFilter.SINK_INPUT.get_value() or filter == DeviceFilter.MUSIC.get_value():
                 device = pulse.sink_input_info(int(pulse_device_name))
             return device
         except Exception as e:
@@ -78,10 +78,14 @@ def get_device(filter: DeviceFilter, pulse_device_name):
 
 def get_device_list(filter: DeviceFilter):
     with pulsectl.Pulse("device-list-getter") as pulse:
+        if filter.get_value() == DeviceFilter.MUSIC.get_value():
+            # Get all apps and filter for ones with media.role == 'music'
+            all_apps = pulse.sink_input_list()
+            return [app for app in all_apps if app.proplist.get('media.role') == 'music']
+
         switch = {
             DeviceFilter.SINK.get_value(): pulse.sink_list(),
             DeviceFilter.SOURCE.get_value(): pulse.source_list(),
-            # Add Sink Input List
             DeviceFilter.SINK_INPUT.get_value(): pulse.sink_input_list(),
         }
         return switch.get(filter.get_value(), {})

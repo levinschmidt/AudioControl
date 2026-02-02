@@ -189,8 +189,6 @@ class AudioCore(ActionCore):
             self.loaded_devices = []
 
             for device in device_list:
-                # Sinks/Sources have description, Sink Inputs (Apps) usually don't.
-                # We skip monitors only if it's a device that has descriptions.
                 if hasattr(device, 'description') and device.description.__contains__("Monitor"):
                     continue
 
@@ -199,12 +197,13 @@ class AudioCore(ActionCore):
                 if device_name is None:
                     continue
 
-                # For Sinks/Sources, we use the name string.
-                # For Applications (Sink Inputs), we use the ID (index) because names aren't unique.
-                if self.device_filter == DeviceFilter.SINK_INPUT.value:
+                # --- CHECK FOR BOTH APP TYPES ---
+                # Both SINK_INPUT and MUSIC need to use the index (ID) as the identifier
+                if self.device_filter == DeviceFilter.SINK_INPUT.value or self.device_filter == DeviceFilter.MUSIC.value:
                     pulse_identifier = str(device.index)
                 else:
                     pulse_identifier = device.name
+                # --------------------------------
 
                 self.loaded_devices.append(Device(
                     pulse_name=pulse_identifier,
