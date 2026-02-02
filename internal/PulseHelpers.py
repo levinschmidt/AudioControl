@@ -9,16 +9,14 @@ from GtkHelper.ComboRow import SimpleComboRowItem
 # --- MPRIS / DBUS HELPERS (Replaces Playerctl) ---
 class MprisPlayer:
     """
-    A custom wrapper that uses Gio to talk to Music Players via D-Bus.
-    This works natively in Flatpak without needing the playerctl library.
+    Optimized wrapper for DBus Music Players.
+    Uses local caching and async calls for instant UI feedback.
     """
 
     def __init__(self, bus_name):
         self.bus_name = bus_name
-        # Extract simple name (e.g. "spotify") from "org.mpris.MediaPlayer2.spotify"
         self.name = bus_name.replace("org.mpris.MediaPlayer2.", "")
 
-        # Create a proxy to the player's property interface
         self.proxy = Gio.DBusProxy.new_for_bus_sync(
             Gio.BusType.SESSION,
             Gio.DBusProxyFlags.NONE,
@@ -29,23 +27,32 @@ class MprisPlayer:
             None
         )
 
-    @property
-    def volume(self):
-        """Returns volume as float 0.0 - 1.0"""
+        # Local cache for instant feedback
+        self._cached_volume = 0.0
+        self._refresh_cache()
+
+    def _refresh_cache(self):
+        """Reads real volume from proxy into local cache."""
         try:
-            # Read the cached property
             v = self.proxy.get_cached_property("Volume")
             if v:
-                return v.get_double()
+                self._cached_volume = v.get_double()
         except Exception:
             pass
-        return 0.0
+
+    @property
+    def volume(self):
+        """Always return the local cache for speed."""
+        return self._cached_volume
 
     def set_volume(self, value):
-        """Sets volume (float 0.0 - 1.0)"""
+        """Sets volume instantly in cache, then sends async DBus command."""
+        # 1. Optimistic Update: Update local value immediately
+        self._cached_volume = value
+
+        # 2. Async Call: Send to DBus without blocking the UI thread
         try:
-            # We must call the DBus Set method directly
-            self.proxy.call_sync(
+            self.proxy.call(
                 "org.freedesktop.DBus.Properties.Set",
                 GLib.Variant("(ssv)", (
                     "org.mpris.MediaPlayer2.Player",
@@ -54,10 +61,10 @@ class MprisPlayer:
                 )),
                 Gio.DBusCallFlags.NONE,
                 -1,
-                None
+                None,  # Cancellable
+                None,  # Callback (we don't wait for it)
+                None  # User data
             )
-            # Optimistically update the cached property so UI updates faster
-            self.proxy.set_cached_property("Volume", GLib.Variant("d", value))
         except Exception as e:
             log.warning(f"Failed to set volume for {self.name}: {e}")
 
@@ -225,6 +232,7 @@ def get_volumes_from_device(device_filter: DeviceFilter, identifier: str, fallba
 
         # Handle MprisPlayer
         if isinstance(device, MprisPlayer):
+            # This now reads from our fast local variable
             return [round(device.volume * 100)]
 
         # Standard PulseAudio Logic
