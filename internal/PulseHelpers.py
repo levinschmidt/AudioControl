@@ -90,7 +90,7 @@ class PlayerWrapper:
 
 # --------------------------------
 
-def get_device(filter: DeviceFilter, identifier, fallback_name=None):
+def get_device(filter: DeviceFilter, identifier, fallback_name=None, fallback_index=None):
     """
     Returns a Pulse object OR a Playerctl.Player object depending on filter.
     """
@@ -117,11 +117,18 @@ def get_device(filter: DeviceFilter, identifier, fallback_name=None):
             elif filter_value == DeviceFilter.SOURCE.get_value():
                 device = pulse.get_source_by_name(identifier)
             elif filter_value == DeviceFilter.SINK_INPUT.get_value():
-                # identifier may be index or descriptive name; try index first
+                # identifier may be index or descriptive name; try identifier as index first
                 try:
                     device = pulse.sink_input_info(int(identifier))
                 except Exception:
                     device = None
+                # Next try stable fallback index if provided
+                if device is None and fallback_index is not None:
+                    try:
+                        device = pulse.sink_input_info(int(fallback_index))
+                    except Exception:
+                        device = None
+                # Finally match by descriptive names
                 if device is None:
                     for sink_input in pulse.sink_input_list():
                         best_name = filter_proplist(sink_input.proplist)
@@ -165,9 +172,9 @@ def get_device_list(filter: DeviceFilter):
         return switch.get(filter.get_value(), {})
 
 
-def get_volumes_from_device(device_filter: DeviceFilter, identifier: str, fallback_name: str | None = None):
+def get_volumes_from_device(device_filter: DeviceFilter, identifier: str, fallback_name: str | None = None, fallback_index: int | None = None):
     try:
-        device = get_device(device_filter, identifier, fallback_name)
+        device = get_device(device_filter, identifier, fallback_name, fallback_index)
 
         # --- FIX: Safety Check ---
         if device is None:
