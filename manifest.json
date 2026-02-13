@@ -1,10 +1,10 @@
 {
-  "name": "Audio Control Applications",
-  "version": "2.5.0",
+  "name": "Audio Control Plus",
+  "version": "0.1.0",
   "minimum-app-version": "1.5.0",
   "app-version": "1.5.0-beta.11",
-  "id": "com_levinschmidt_AudioControl",
-  "github": "https://github.com/levinschmidt/AudioControl",
+  "id": "com_levinschmidt_AudioControlPlus",
+  "github": "https://github.com/G4PLS/AudioControl",
   "thumbnail": "store/Thumbnail.png",
   "descriptions": {
     "en_US": "AudioController brings powerful audio management capabilities to StreamController. From setting and adjusting volumes to toggling devices, muting, and displaying device information, this plugin offers a flexible and efficient way to control your system’s audio.",
