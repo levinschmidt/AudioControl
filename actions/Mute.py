@@ -44,7 +44,8 @@ class Mute(AudioCore):
 
             try:
                 device = get_application(self.selected_application.restore_id)
-                self.mute(device)
+                if device is not None:
+                    self.mute(device)
             except Exception as e:
                 log.error(f"Error while muting: {e}")
                 self.show_error(1)
@@ -55,7 +56,10 @@ class Mute(AudioCore):
         with pulsectl.Pulse(f"mute-event") as pulse:
             try:
                 device = get_application(self.selected_application.restore_id)
-                self.is_muted = bool(device.mute)
+                if device is None:
+                    self.is_muted = bool(device.mute)
+                else:
+                    self.is_muted = False
 
                 self.set_current_icon()
                 self.display_device_info()
