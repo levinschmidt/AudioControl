@@ -1,3 +1,5 @@
+from gi.overrides.GLib import GLib
+from gi.overrides.Gio import Gio
 from loguru import logger as log
 
 from GtkHelper.GenerativeUI.ExpanderRow import ExpanderRow
@@ -6,7 +8,8 @@ from src.backend.DeckManagement.InputIdentifier import Input
 from src.backend.PluginManager.EventAssigner import EventAssigner
 from .AudioCore import AudioCore
 from ..globals import Icons
-from ..internal.PulseHelpers import get_device, change_volume, get_volumes_from_device, set_volume
+from ..internal.PulseHelpers import (get_device, change_volume,  get_volume_from_music_player, get_volumes_from_device, set_volume_music_player,
+                                     set_volume, DeviceFilter)
 
 
 class AdjustVolume(AudioCore):
@@ -83,27 +86,34 @@ class AdjustVolume(AudioCore):
     def adjust_volume(self, modifier: int = 1):
         adjustment = self.adjust * modifier
 
-        if self.selected_device is None:
-            self.show_error(1)
-            return
+        if self.device_filter == DeviceFilter.MUSIC.value:
+            volume = get_volume_from_music_player(self.selected_music_player.bus_name) + adjustment
 
-        try:
-            device = get_device(self.device_filter, self.selected_device.pulse_name)
+            set_volume_music_player(self.selected_music_player, volume)
+            self.display_device_info()
 
-            if adjustment < 0:
-                change_volume(device, adjustment)
+        elif self.device_filter == DeviceFilter.SINK.value:
+            if self.selected_device is None:
+                self.show_error(1)
                 return
 
-            volumes = get_volumes_from_device(self.device_filter, device.name)
+            try:
+                device = get_device(self.device_filter, self.selected_device.pulse_name)
 
-            if len(volumes) > 0 and volumes[0] < self.bounds:
-                if volumes[0] + adjustment > self.bounds:
-                    set_volume(device, self.bounds)
-                else:
+                if adjustment < 0:
                     change_volume(device, adjustment)
-        except Exception as e:
-            log.error(e)
-            self.show_error(1)
+                    return
+
+                volumes = get_volumes_from_device(self.device_filter, device.name)
+
+                if len(volumes) > 0 and volumes[0] < self.bounds:
+                    if volumes[0] + adjustment > self.bounds:
+                        set_volume(device, self.bounds)
+                    else:
+                        change_volume(device, adjustment)
+            except Exception as e:
+                log.error(e)
+                self.show_error(1)
 
     def on_volume_adjust_change(self, widget, value, old):
         self.adjust = value

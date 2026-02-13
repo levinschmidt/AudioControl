@@ -14,12 +14,7 @@ from src.backend.DeckManagement.ImageHelpers import image2pixbuf
 from .internal.PulseEventListener import PulseEvent
 
 from .actions.Mute import Mute
-from .actions.SetVolume import SetVolume
 from .actions.AdjustVolume import AdjustVolume
-from .actions.ToggleDefaultDevice import ToggleDefaultDevice
-from .actions.VolumeWarning import VolumeWarning
-from .actions.AudioDisplay import AudioDisplay
-from .actions.SetDefaultDevice import SetDefaultDevice
 
 from .globals import Icons, Colors
 
@@ -29,19 +24,6 @@ class AudioControl(PluginBase):
         self.init_vars()
 
         self.has_plugin_settings = True
-
-        self.audio_display = ActionHolder(
-            plugin_base=self,
-            action_core=AudioDisplay,
-            action_id_suffix="AudioDisplay",
-            action_name="Audio Display",
-            action_support= {
-                Input.Key: ActionInputSupport.SUPPORTED,
-                Input.Dial: ActionInputSupport.SUPPORTED,
-                Input.Touchscreen: ActionInputSupport.UNTESTED
-            }
-        )
-        self.add_action_holder(self.audio_display)
 
         self.mute = ActionHolder(
             plugin_base=self,
@@ -56,19 +38,6 @@ class AudioControl(PluginBase):
         )
         self.add_action_holder(self.mute)
 
-        self.set_volume = ActionHolder(
-            plugin_base=self,
-            action_core=SetVolume,
-            action_id_suffix="SetVolume",
-            action_name="Set Volume",
-            action_support= {
-                Input.Key: ActionInputSupport.SUPPORTED,
-                Input.Dial: ActionInputSupport.SUPPORTED,
-                Input.Touchscreen: ActionInputSupport.UNTESTED
-            }
-        )
-        self.add_action_holder(self.set_volume)
-
         self.volume_adjust = ActionHolder(
             plugin_base=self,
             action_core=AdjustVolume,
@@ -82,52 +51,13 @@ class AudioControl(PluginBase):
         )
         self.add_action_holder(self.volume_adjust)
 
-        self.toggle_default_device = ActionHolder(
-            plugin_base=self,
-            action_core=ToggleDefaultDevice,
-            action_id_suffix="ToggleDefaultDevice",
-            action_name="Toggle Default Device",
-            action_support={
-                Input.Key: ActionInputSupport.SUPPORTED,
-                Input.Dial: ActionInputSupport.SUPPORTED,
-                Input.Touchscreen: ActionInputSupport.UNTESTED
-            }
-        )
-        self.add_action_holder(self.toggle_default_device)
-
-        self.set_default_device = ActionHolder(
-            plugin_base=self,
-            action_core=SetDefaultDevice,
-            action_id_suffix="SetDefaultDevice",
-            action_name="Set Default Device",
-            action_support={
-                Input.Key: ActionInputSupport.SUPPORTED,
-                Input.Dial: ActionInputSupport.SUPPORTED,
-                Input.Touchscreen: ActionInputSupport.UNTESTED
-            }
-        )
-        self.add_action_holder(self.set_default_device)
-
-        self.volume_warning = ActionHolder(
-            plugin_base=self,
-            action_core=VolumeWarning,
-            action_id_suffix="VolumeWarning",
-            action_name="Volume Warning",
-            action_support={
-                Input.Key: ActionInputSupport.SUPPORTED,
-                Input.Dial: ActionInputSupport.SUPPORTED,
-                Input.Touchscreen: ActionInputSupport.UNTESTED
-            }
-        )
-        self.add_action_holder(self.volume_warning)
-
         # Events
 
         self.pulse_sink_event_holder = PulseEvent(
             self,
             "com_gapls_AudioControl::PulseEvent",
             pulsectl.PulseEventMaskEnum.sink,
-            pulsectl.PulseEventMaskEnum.source
+            pulsectl.PulseEventMaskEnum.source,
         )
         self.add_event_holder(self.pulse_sink_event_holder)
 
