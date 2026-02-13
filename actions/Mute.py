@@ -57,9 +57,9 @@ class Mute(AudioCore):
             try:
                 device = get_application(self.selected_application.restore_id)
                 if device is None:
-                    self.is_muted = bool(device.mute)
-                else:
                     self.is_muted = False
+                else:
+                    self.is_muted = bool(device.mute)
 
                 self.set_current_icon()
                 self.display_device_info()
