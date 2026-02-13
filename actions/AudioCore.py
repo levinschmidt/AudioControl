@@ -195,7 +195,6 @@ class AudioCore(ActionCore):
 
                 for application in application_list:
                     if 'application.name' in application.proplist:
-                        print(application.proplist['application.name'])
                         # Blacklist
                         blacklist = ["SocialClubHelper.exe", "Launcher.exe", "Rockstar Games Launcher", "GTA5_Enhanced.exe", "FSD-Win64-Shipping.exe"]
                         if any(element.lower() in application.proplist['application.name'].lower() for element in blacklist):

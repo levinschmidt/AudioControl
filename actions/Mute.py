@@ -5,7 +5,7 @@ from src.backend.DeckManagement.InputIdentifier import Input
 from src.backend.PluginManager.EventAssigner import EventAssigner
 from .AudioCore import AudioCore
 from ..globals import Icons
-from ..internal.PulseHelpers import get_application, mute
+from ..internal.PulseHelpers import get_application, mute, DeviceFilter
 
 
 class Mute(AudioCore):
@@ -18,8 +18,11 @@ class Mute(AudioCore):
                                           callback=self.on_pulse_device_change)
 
         self.is_muted = False
+        self._current_icon = self.get_icon(Icons.UNMUTED)
+        self._icon_name = Icons.UNMUTED
 
         self.create_generative_ui()
+
 
     def create_event_assigners(self):
         self.add_event_assigner(EventAssigner(
@@ -35,23 +38,23 @@ class Mute(AudioCore):
         return
 
     def on_mute(self, event):
-        if self.selected_device is None:
-            self.show_error(1)
-            return
+        if self.device_filter == DeviceFilter.APPLICATION.value or self.device_filter == DeviceFilter.GAME.value:
+            if self.selected_application is None:
+                return
 
-        try:
-            device = get_application(self.device_filter, self.selected_device.pulse_name)
-            self.mute(device)
-        except Exception as e:
-            log.error(f"Error while muting: {e}")
-            self.show_error(1)
+            try:
+                device = get_application(self.selected_application.restore_id)
+                self.mute(device)
+            except Exception as e:
+                log.error(f"Error while muting: {e}")
+                self.show_error(1)
 
     ########### UI STUFF ###########
 
     def update_mute_image(self):
         with pulsectl.Pulse(f"mute-event") as pulse:
             try:
-                device = get_application(self.device_filter, self.selected_device.pulse_name)
+                device = get_application(self.selected_application.restore_id)
                 self.is_muted = bool(device.mute)
 
                 self.set_current_icon()
