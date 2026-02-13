@@ -5,7 +5,7 @@ from src.backend.DeckManagement.InputIdentifier import Input
 from src.backend.PluginManager.EventAssigner import EventAssigner
 from .AudioCore import AudioCore
 from ..globals import Icons
-from ..internal.PulseHelpers import get_device, mute
+from ..internal.PulseHelpers import get_application, mute
 
 
 class Mute(AudioCore):
@@ -40,7 +40,7 @@ class Mute(AudioCore):
             return
 
         try:
-            device = get_device(self.device_filter, self.selected_device.pulse_name)
+            device = get_application(self.device_filter, self.selected_device.pulse_name)
             self.mute(device)
         except Exception as e:
             log.error(f"Error while muting: {e}")
@@ -51,7 +51,7 @@ class Mute(AudioCore):
     def update_mute_image(self):
         with pulsectl.Pulse(f"mute-event") as pulse:
             try:
-                device = get_device(self.device_filter, self.selected_device.pulse_name)
+                device = get_application(self.device_filter, self.selected_device.pulse_name)
                 self.is_muted = bool(device.mute)
 
                 self.set_current_icon()

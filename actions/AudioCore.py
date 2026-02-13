@@ -10,7 +10,7 @@ from GtkHelper.GenerativeUI.EntryRow import EntryRow
 from GtkHelper.GenerativeUI.ExpanderRow import ExpanderRow
 from GtkHelper.GenerativeUI.SwitchRow import SwitchRow
 from src.backend.PluginManager.ActionCore import ActionCore
-from ..internal.PulseHelpers import (DeviceFilter, get_device_list, filter_proplist, get_volumes_from_device, get_volume_from_music_player)
+from ..internal.PulseHelpers import (DeviceFilter, get_application_list, get_volume_from_application, get_volume_from_music_player)
 
 
 class InfoContent(enum.Enum):
@@ -39,18 +39,17 @@ class MusicPlayer(BaseComboRowItem):
     def get_value(self):
         return self.name
 
-class Device(BaseComboRowItem):
-    def __init__(self, pulse_name, pulse_index, device_name):
+class Application(BaseComboRowItem):
+    def __init__(self, application_name: str, restore_id: str,):
         super().__init__()
-        self.pulse_name: str = pulse_name
-        self.pulse_index: int = pulse_index
-        self.device_name: str = device_name
+        self.application_name = application_name
+        self.restore_id = restore_id
 
     def __str__(self):
-        return self.device_name
+        return self.application_name
 
     def get_value(self):
-        return self.pulse_name
+        return self.restore_id
 
 
 class AudioCore(ActionCore):
@@ -65,9 +64,8 @@ class AudioCore(ActionCore):
 
 
         # Settings
-
         self.selected_music_player: MusicPlayer = None
-        self.selected_device: Device = None
+        self.selected_application: Application = None
 
         self.device_filter: DeviceFilter = None
         self.info_content = InfoContent.VOLUME.value
@@ -77,15 +75,12 @@ class AudioCore(ActionCore):
 
         self.show_info_content = True
 
-        self.use_standard_device = False
-
         self.loaded_music_players: list[MusicPlayer] = []
-        self.loaded_devices: list[Device] = []
+        self.loaded_applications: list[Application] = []
 
         self._last_volume_refresh_music_player = 0.0
 
         # Icon
-
         self.icon_keys = []
 
         self._current_icon = None
@@ -105,7 +100,7 @@ class AudioCore(ActionCore):
         self.device_filter_combo_row = ComboRow(
             action_core=self,
             var_name="device-filter",
-            default_value=DeviceFilter.SINK.value,
+            default_value=DeviceFilter.APPLICATION.value,
             items=[device_filter.value for device_filter in DeviceFilter],
             title="base-filter-dropdown",
             complex_var_name=False,
@@ -114,12 +109,12 @@ class AudioCore(ActionCore):
 
         self.device_combo_row = ComboRow(
             action_core=self,
-            var_name="pulse-name",
+            var_name="restore-id",
             default_value="",
             items=[],
             title="base-device-dropdown",
             complex_var_name=False,
-            on_change=self.device_changed
+            on_change=self.application_changed
         )
 
         self.device_expander.add_row(self.device_filter_combo_row.widget)
@@ -185,7 +180,7 @@ class AudioCore(ActionCore):
         self.device_name_expander.add_row(self.device_name_switch.widget)
         self.device_name_expander.add_row(self.device_nick_entry.widget)
 
-        self.device_filter = self.device_filter_combo_row.get_selected_item()
+        #self.device_filter = self.device_filter_combo_row.get_selected_item()
 
     def create_event_assigners(self):
         pass
@@ -197,7 +192,7 @@ class AudioCore(ActionCore):
         return
 
     def on_tick(self):
-        if not self.selected_music_player or not self.show_info_content or self.info_content != InfoContent.VOLUME.value:
+        if not self.device_filter == DeviceFilter.MUSIC.value or not self.selected_music_player:
             return
 
         now = time.monotonic()
@@ -208,54 +203,56 @@ class AudioCore(ActionCore):
             self._last_volume_refresh_music_player = now
             self.display_device_info()
 
-    def load_devices(self):
+    def load_application(self):
         try:
-            device_list = get_device_list(self.device_filter)
+            application_list = get_application_list(self.device_filter)
 
             if self.device_filter == DeviceFilter.MUSIC.value:
                 self.loaded_music_players = []
 
-                for device in device_list:
+                for device in application_list:
                     self.loaded_music_players.append(MusicPlayer(bus_name=device))
 
-            if self.device_filter == DeviceFilter.SINK.value:
-                self.loaded_devices = []
+                self.device_combo_row.populate(self.loaded_music_players, self.device_combo_row.get_value())
+            elif self.device_filter == DeviceFilter.APPLICATION.value:
+                settings = self.get_settings()
+                saved_restore_id = settings.get("restore-id", "")
+                saved_restore_name = settings.get("restore-name", "")
 
-                for device in device_list:
-                    if device.description.__contains__("Monitor"):
-                        continue
+                self.loaded_applications = []
 
-                    device_name = filter_proplist(device.proplist)
+                for application in application_list:
+                    if 'application.name' in application.proplist:
+                        application_name = application.proplist['application.name']
+                        restore_id = application.proplist.get('module-stream-restore.id', None)
+                        self.loaded_applications.append(Application(application_name=application_name, restore_id=restore_id))
 
-                    if device_name is None:
-                        continue
+                self.loaded_applications.append(Application(application_name=saved_restore_name, restore_id=saved_restore_id))
+                self.device_combo_row.populate(self.loaded_applications, saved_restore_id)
+            else:
+                self.device_combo_row.populate([], "")
 
-                    self.loaded_devices.append(Device(
-                        pulse_name=device.name,
-                        pulse_index=device.index,
-                        device_name=device_name
-                    ))
         except Exception as e:
             log.error(f"Error while populating device list: {e}")
             return
-
-        if self.device_filter == DeviceFilter.MUSIC.value:
-            self.device_combo_row.populate(self.loaded_music_players, self.device_combo_row.get_value())
-        elif self.device_filter == DeviceFilter.SINK.value:
-            self.device_combo_row.populate(self.loaded_devices, self.device_combo_row.get_value())
         self.display_device_info()
 
     # UI Events
 
     def device_filter_changed(self, widget, value, old):
         self.device_filter = value
-        self.load_devices()
+        self.load_application()
 
-    def device_changed(self, widget, value, old):
+    def application_changed(self, widget, value, old):
         if self.device_filter == DeviceFilter.MUSIC.value:
             self.selected_music_player = value
-        elif self.device_filter == DeviceFilter.SINK.value:
-            self.selected_device = value
+        elif self.device_filter == DeviceFilter.APPLICATION.value:
+            self.selected_application = value
+            settings = self.get_settings()
+            settings["restore-id"] = value.restore_id
+            settings["restore-name"] = value.application_name
+            self.set_settings(settings)
+
 
         self.display_device_name()
         self.display_device_info()
@@ -283,7 +280,7 @@ class AudioCore(ActionCore):
             self.set_top_label("")
             return
 
-        if not self.device_nick and not self.selected_device and not self.selected_music_player:
+        if not self.device_nick and not self.selected_application and not self.selected_music_player:
             return
 
         if self.device_nick and self.device_nick != "":
@@ -291,8 +288,8 @@ class AudioCore(ActionCore):
         else:
             if self.device_filter == DeviceFilter.MUSIC.value:
                 self.set_top_label(self.selected_music_player.name)
-            elif self.device_filter == DeviceFilter.SINK.value:
-                self.set_top_label(self.selected_device.device_name)
+            elif self.device_filter == DeviceFilter.APPLICATION.value:
+                self.set_top_label(self.selected_application.application_name)
 
     def display_device_info(self):
         if not self.show_info_content:
@@ -306,19 +303,19 @@ class AudioCore(ActionCore):
         else:
             self.set_bottom_label("")
 
-    def display_volume(self):
-        if not self.device_filter or (not self.selected_device and not self.selected_music_player):
-            return
+    def display_volume(self) -> str:
+        if not self.device_filter or (not self.selected_application and not self.selected_music_player):
+            return "N/A"
 
         if self.device_filter == DeviceFilter.MUSIC.value:
-            volumes = [get_volume_from_music_player(self.selected_music_player.bus_name)]
-        elif self.device_filter == DeviceFilter.SINK.value:
-            volumes = get_volumes_from_device(self.device_filter, self.selected_device.pulse_name)
+            volume = get_volume_from_music_player(self.selected_music_player.bus_name)
+        elif self.device_filter == DeviceFilter.APPLICATION.value:
+            volume = get_volume_from_application(self.selected_application.restore_id)
         else:
-            volumes = []
+            volume = None
 
-        if len(volumes) > 0:
-            return str(int(volumes[0]))
+        if volume is not None:
+            return str(int(volume))
         return "N/A"
 
     def display_adjustment(self):
@@ -337,15 +334,11 @@ class AudioCore(ActionCore):
         self.display_icon()
 
     async def on_pulse_device_change(self, *args, **kwargs):
-        if len(args) < 2 or self.selected_device is None:
+        if len(args) < 2 or (self.selected_application is None and self.selected_music_player is None):
             return
 
-        event = args[1]
-        index = self.selected_device.pulse_index
-
-        if event.index == index:
-            self.display_icon()
-            self.display_device_info()
+        self.display_icon()
+        self.display_device_info()
 
     def display_icon(self):
         if not self._current_icon:

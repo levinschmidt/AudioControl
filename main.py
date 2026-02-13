@@ -6,7 +6,6 @@ from gi.repository import Gtk
 
 from src.backend.PluginManager.ActionHolder import ActionHolder
 from src.backend.PluginManager.ActionInputSupport import ActionInputSupport
-from src.backend.PluginManager.EventHolder import EventHolder
 from src.backend.PluginManager.PluginBase import PluginBase
 from src.backend.DeckManagement.InputIdentifier import Input
 from src.backend.DeckManagement.ImageHelpers import image2pixbuf
@@ -58,6 +57,7 @@ class AudioControl(PluginBase):
             "com_gapls_AudioControl::PulseEvent",
             pulsectl.PulseEventMaskEnum.sink,
             pulsectl.PulseEventMaskEnum.source,
+            pulsectl.PulseEventMaskEnum.sink_input,
         )
         self.add_event_holder(self.pulse_sink_event_holder)
 

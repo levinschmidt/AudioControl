@@ -8,8 +8,8 @@ from src.backend.DeckManagement.InputIdentifier import Input
 from src.backend.PluginManager.EventAssigner import EventAssigner
 from .AudioCore import AudioCore
 from ..globals import Icons
-from ..internal.PulseHelpers import (get_device, change_volume,  get_volume_from_music_player, get_volumes_from_device, set_volume_music_player,
-                                     set_volume, DeviceFilter)
+from ..internal.PulseHelpers import (get_application, get_volume_from_music_player, get_volume_from_application, set_volume_music_player,
+                                     set_volume_application, DeviceFilter)
 
 
 class AdjustVolume(AudioCore):
@@ -90,30 +90,26 @@ class AdjustVolume(AudioCore):
             volume = get_volume_from_music_player(self.selected_music_player.bus_name) + adjustment
 
             set_volume_music_player(self.selected_music_player, volume)
-            self.display_device_info()
 
-        elif self.device_filter == DeviceFilter.SINK.value:
-            if self.selected_device is None:
+
+        elif self.device_filter == DeviceFilter.APPLICATION.value:
+            if self.selected_application is None:
                 self.show_error(1)
                 return
 
             try:
-                device = get_device(self.device_filter, self.selected_device.pulse_name)
-
-                if adjustment < 0:
-                    change_volume(device, adjustment)
+                device = get_application(self.selected_application.restore_id)
+                old_volume = get_volume_from_application(self.selected_application.restore_id)
+                if old_volume is None:
                     return
+                new_volume = max(0, min(self.bounds, old_volume + adjustment))
+                set_volume_application(device, new_volume)
 
-                volumes = get_volumes_from_device(self.device_filter, device.name)
-
-                if len(volumes) > 0 and volumes[0] < self.bounds:
-                    if volumes[0] + adjustment > self.bounds:
-                        set_volume(device, self.bounds)
-                    else:
-                        change_volume(device, adjustment)
             except Exception as e:
                 log.error(e)
                 self.show_error(1)
+
+        self.display_device_info()
 
     def on_volume_adjust_change(self, widget, value, old):
         self.adjust = value
