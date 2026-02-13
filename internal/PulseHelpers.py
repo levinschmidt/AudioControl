@@ -54,7 +54,7 @@ def get_application_list(filter: DeviceFilter):
             log.error(f"Error listing DBus players: {e}")
         return players
 
-    elif filter.get_value() == DeviceFilter.APPLICATION.get_value():
+    elif filter.get_value() == DeviceFilter.APPLICATION.get_value() or filter.get_value() == DeviceFilter.GAME.get_value():
         return pulsectl.Pulse("app-list-getter").sink_input_list()
 
     else:

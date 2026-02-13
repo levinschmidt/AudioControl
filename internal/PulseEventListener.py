@@ -21,7 +21,7 @@ class PulseEvent(EventHolder):
 
             pulse.event_mask_set(*self.masks)
 
-            pulsectl.Pulse()
+            #pulsectl.Pulse()
             pulse.event_callback_set(lambda event: self.trigger_event(event))
 
             while True:

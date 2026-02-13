@@ -11,6 +11,7 @@ from GtkHelper.GenerativeUI.ExpanderRow import ExpanderRow
 from GtkHelper.GenerativeUI.SwitchRow import SwitchRow
 from src.backend.PluginManager.ActionCore import ActionCore
 from ..internal.PulseHelpers import (DeviceFilter, get_application_list, get_volume_from_application, get_volume_from_music_player)
+from ..internal.PulseEventListener import PulseEvent
 
 
 class InfoContent(enum.Enum):
@@ -79,6 +80,7 @@ class AudioCore(ActionCore):
         self.loaded_applications: list[Application] = []
 
         self._last_volume_refresh_music_player = 0.0
+        self._last_game_update_time = 0.0
 
         # Icon
         self.icon_keys = []
@@ -180,12 +182,46 @@ class AudioCore(ActionCore):
         self.device_name_expander.add_row(self.device_name_switch.widget)
         self.device_name_expander.add_row(self.device_nick_entry.widget)
 
-        #self.device_filter = self.device_filter_combo_row.get_selected_item()
-
     def create_event_assigners(self):
         pass
 
+    def update_game_application(self):
+        now = time.monotonic()
+        if now - self._last_game_update_time > 5.0:
+            if self.device_filter == DeviceFilter.GAME.value:
+                self._last_game_update_time = now
+
+                application_list = get_application_list(self.device_filter)
+
+                for application in application_list:
+                    if 'application.name' in application.proplist:
+                        print(application.proplist['application.name'])
+                        # Blacklist
+                        blacklist = ["SocialClubHelper.exe", "Launcher.exe", "Rockstar Games Launcher", "GTA5_Enhanced.exe", "FSD-Win64-Shipping.exe"]
+                        if any(element.lower() in application.proplist['application.name'].lower() for element in blacklist):
+                            continue
+
+                        # Whitelist
+                        whitelist = []
+                        if any(element in application.proplist['application.name'].lower() for element in whitelist):
+                            application_name = application.proplist['application.name']
+                            restore_id = application.proplist.get('module-stream-restore.id', None)
+                            self.selected_application = Application(application_name=application_name, restore_id=restore_id)
+                            return
+
+                    if 'application.process.binary' in application.proplist:
+                        application_process_binary = application.proplist['application.process.binary']
+                        if "wine" in application_process_binary.lower():
+                            application_name = application.proplist['application.name']
+                            restore_id = application.proplist.get('module-stream-restore.id', None)
+                            self.selected_application = Application(application_name=application_name, restore_id=restore_id)
+                            return
+
+                self.selected_application = Application(application_name='Game', restore_id=None)
+
+
     def on_update(self):
+        self.update_game_application()
         self.display_device_name()
         self.display_device_info()
         self.display_icon()
@@ -252,6 +288,8 @@ class AudioCore(ActionCore):
             settings["restore-id"] = value.restore_id
             settings["restore-name"] = value.application_name
             self.set_settings(settings)
+        elif self.device_filter == DeviceFilter.GAME.value:
+            pass
 
 
         self.display_device_name()
@@ -288,7 +326,7 @@ class AudioCore(ActionCore):
         else:
             if self.device_filter == DeviceFilter.MUSIC.value:
                 self.set_top_label(self.selected_music_player.name)
-            elif self.device_filter == DeviceFilter.APPLICATION.value:
+            elif self.device_filter == DeviceFilter.APPLICATION.value or self.device_filter == DeviceFilter.GAME.value:
                 self.set_top_label(self.selected_application.application_name)
 
     def display_device_info(self):
@@ -309,7 +347,7 @@ class AudioCore(ActionCore):
 
         if self.device_filter == DeviceFilter.MUSIC.value:
             volume = get_volume_from_music_player(self.selected_music_player.bus_name)
-        elif self.device_filter == DeviceFilter.APPLICATION.value:
+        elif self.device_filter == DeviceFilter.APPLICATION.value or self.device_filter == DeviceFilter.GAME.value:
             volume = get_volume_from_application(self.selected_application.restore_id)
         else:
             volume = None
@@ -334,9 +372,11 @@ class AudioCore(ActionCore):
         self.display_icon()
 
     async def on_pulse_device_change(self, *args, **kwargs):
-        if len(args) < 2 or (self.selected_application is None and self.selected_music_player is None):
+        if len(args) < 2:
             return
 
+        self.update_game_application()
+        self.display_device_name()
         self.display_icon()
         self.display_device_info()
 

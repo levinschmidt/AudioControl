@@ -92,7 +92,7 @@ class AdjustVolume(AudioCore):
             set_volume_music_player(self.selected_music_player, volume)
 
 
-        elif self.device_filter == DeviceFilter.APPLICATION.value:
+        elif self.device_filter == DeviceFilter.APPLICATION.value or self.device_filter == DeviceFilter.GAME.value:
             if self.selected_application is None:
                 self.show_error(1)
                 return
