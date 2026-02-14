@@ -41,10 +41,11 @@ class MusicPlayer(BaseComboRowItem):
         return self.name
 
 class Application(BaseComboRowItem):
-    def __init__(self, application_name: str, restore_id: str,):
+    def __init__(self, application_name: str, restore_id: str, index: int):
         super().__init__()
         self.application_name = application_name
         self.restore_id = restore_id
+        self.index = index
 
     def __str__(self):
         return self.application_name
@@ -187,7 +188,7 @@ class AudioCore(ActionCore):
 
     def update_game_application(self):
         now = time.monotonic()
-        if now - self._last_game_update_time > 5.0:
+        if now - self._last_game_update_time > 1.0:
             if self.device_filter == DeviceFilter.GAME.value:
                 self._last_game_update_time = now
 
@@ -205,19 +206,31 @@ class AudioCore(ActionCore):
                         if any(element in application.proplist['application.name'].lower() for element in whitelist):
                             application_name = application.proplist['application.name']
                             restore_id = application.proplist.get('module-stream-restore.id', None)
-                            self.selected_application = Application(application_name=application_name, restore_id=restore_id)
+                            index = application.index
+                            self.selected_application = Application(application_name=application_name, restore_id=restore_id, index=index)
                             return
 
                     if 'application.process.binary' in application.proplist:
+                        print(application.proplist['application.name'] + "    -    " + application.proplist['application.process.binary'])
                         application_process_binary = application.proplist['application.process.binary']
                         if "wine" in application_process_binary.lower():
                             application_name = application.proplist['application.name']
                             restore_id = application.proplist.get('module-stream-restore.id', None)
-                            self.selected_application = Application(application_name=application_name, restore_id=restore_id)
+                            index = application.index
+                            self.selected_application = Application(application_name=application_name, restore_id=restore_id, index=index)
                             return
 
-                self.selected_application = Application(application_name='Game', restore_id=None)
+                self.selected_application = Application(application_name='Game', restore_id=None, index=None)
 
+    def update_application_index(self):
+        if self.selected_application and self.selected_application.restore_id:
+            application_list = get_application_list(self.device_filter)
+
+            for application in application_list:
+                if 'module-stream-restore.id' in application.proplist and application.proplist['module-stream-restore.id'] == self.selected_application.restore_id:
+                    index = application.index
+                    self.selected_application.index = index
+                    return
 
     def on_update(self):
         self.update_game_application()
@@ -260,9 +273,10 @@ class AudioCore(ActionCore):
                     if 'application.name' in application.proplist:
                         application_name = application.proplist['application.name']
                         restore_id = application.proplist.get('module-stream-restore.id', None)
-                        self.loaded_applications.append(Application(application_name=application_name, restore_id=restore_id))
+                        index = application.index
+                        self.loaded_applications.append(Application(application_name=application_name, restore_id=restore_id, index=index))
 
-                self.loaded_applications.append(Application(application_name=saved_restore_name, restore_id=saved_restore_id))
+                self.loaded_applications.append(Application(application_name=saved_restore_name, restore_id=saved_restore_id, index=None))
                 self.device_combo_row.populate(self.loaded_applications, saved_restore_id)
             else:
                 self.device_combo_row.populate([], "")
@@ -371,13 +385,31 @@ class AudioCore(ActionCore):
         self.display_icon()
 
     async def on_pulse_device_change(self, *args, **kwargs):
-        if len(args) < 2:
+        if len(args) < 2 or self.device_filter == DeviceFilter.MUSIC.value:
             return
 
-        self.update_game_application()
-        self.display_device_name()
-        self.display_icon()
-        self.display_device_info()
+        event = args[1]
+        event_type = event.t._value
+        if self.selected_application:
+            index = self.selected_application.index
+        else:
+            index = None
+
+        if event_type == 'new':
+            if index is None:
+                self.update_application_index()
+            if self.device_filter == DeviceFilter.GAME.value:
+                self.update_game_application()
+                self.display_device_name()
+                self.display_icon()
+                self.display_device_info()
+        elif event_type == 'remove':
+            if event.index == index:
+                self.selected_application.index = None
+
+        if event.index == index:
+            self.display_icon()
+            self.display_device_info()
 
     def display_icon(self):
         if not self._current_icon:
