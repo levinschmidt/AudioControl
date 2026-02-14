@@ -55,11 +55,14 @@ class Mute(AudioCore):
     def update_mute_image(self):
         with pulsectl.Pulse(f"mute-event") as pulse:
             try:
-                device = get_application(self.selected_application.restore_id)
-                if device is None:
+                if self.selected_application is None:
                     self.is_muted = False
                 else:
-                    self.is_muted = bool(device.mute)
+                    device = get_application(self.selected_application.restore_id)
+                    if device is None:
+                        self.is_muted = False
+                    else:
+                        self.is_muted = bool(device.mute)
 
                 self.set_current_icon()
                 self.display_device_info()
