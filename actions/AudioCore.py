@@ -213,7 +213,7 @@ class AudioCore(ActionCore):
 
                     if 'application.process.binary' in application.proplist:
                         if os.getenv('AUDIO_CONTROL_PLUS_DEBUG_GAMES') == 'true':
-                            log.debug("%s - %s", application.proplist['application.name'], application.proplist['application.process.binary'])
+                            log.debug(f"{application.proplist['application.name']} - {application.proplist['application.process.binary']}")
                         application_process_binary = application.proplist['application.process.binary']
                         if "wine" in application_process_binary.lower():
                             application_name = application.proplist['application.name']
