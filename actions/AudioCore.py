@@ -1,4 +1,5 @@
 import enum
+import os
 import time
 
 from gi.overrides.Gio import Gio
@@ -211,7 +212,8 @@ class AudioCore(ActionCore):
                             return
 
                     if 'application.process.binary' in application.proplist:
-                        log.debug(application.proplist['application.name'] + " - " + application.proplist['application.process.binary'])
+                        if os.getenv('AUDIO_CONTROL_PLUS_DEBUG_GAMES') == 'true':
+                            log.debug("%s - %s", application.proplist['application.name'], application.proplist['application.process.binary'])
                         application_process_binary = application.proplist['application.process.binary']
                         if "wine" in application_process_binary.lower():
                             application_name = application.proplist['application.name']
