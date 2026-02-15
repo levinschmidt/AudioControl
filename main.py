@@ -12,8 +12,7 @@ from src.backend.DeckManagement.ImageHelpers import image2pixbuf
 
 from .internal.PulseEventListener import PulseEvent
 
-from .actions.Mute import Mute
-from .actions.AdjustVolume import AdjustVolume
+from .actions.ControlVolume import ControlVolume
 
 from .globals import Icons, Colors
 
@@ -24,31 +23,18 @@ class AudioControl(PluginBase):
 
         self.has_plugin_settings = True
 
-        self.mute = ActionHolder(
+        self.control_adjust = ActionHolder(
             plugin_base=self,
-            action_core=Mute,
-            action_id_suffix="Mute",
-            action_name="Mute",
-            action_support= {
-                Input.Key: ActionInputSupport.SUPPORTED,
-                Input.Dial: ActionInputSupport.SUPPORTED,
-                Input.Touchscreen: ActionInputSupport.UNTESTED
-            }
-        )
-        self.add_action_holder(self.mute)
-
-        self.volume_adjust = ActionHolder(
-            plugin_base=self,
-            action_core=AdjustVolume,
-            action_id_suffix="AdjustVolume",
-            action_name="Adjust Volume",
+            action_core=ControlVolume,
+            action_id_suffix="ControlVolume",
+            action_name="Control Volume",
             action_support={
                 Input.Key: ActionInputSupport.SUPPORTED,
                 Input.Dial: ActionInputSupport.SUPPORTED,
                 Input.Touchscreen: ActionInputSupport.UNTESTED
             }
         )
-        self.add_action_holder(self.volume_adjust)
+        self.add_action_holder(self.control_adjust)
 
         # Events
 

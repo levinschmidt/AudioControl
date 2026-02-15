@@ -13,6 +13,7 @@ from GtkHelper.GenerativeUI.SwitchRow import SwitchRow
 from src.backend.PluginManager.ActionCore import ActionCore
 from ..internal.PulseHelpers import (DeviceFilter, get_application_list, get_volume_from_application, get_volume_from_music_player)
 from ..internal.PulseEventListener import PulseEvent
+from ..globals import GameFilter
 
 
 class InfoContent(enum.Enum):
@@ -42,11 +43,12 @@ class MusicPlayer(BaseComboRowItem):
         return self.name
 
 class Application(BaseComboRowItem):
-    def __init__(self, application_name: str, restore_id: str, index: int):
+    def __init__(self, application_name: str, restore_id: str, index: int, mute_on_game_launch: bool = False):
         super().__init__()
         self.application_name = application_name
         self.restore_id = restore_id
         self.index = index
+        self.mute_on_game_launch = mute_on_game_launch
 
     def __str__(self):
         return self.application_name
@@ -198,31 +200,38 @@ class AudioCore(ActionCore):
                 for application in application_list:
                     if 'application.name' in application.proplist:
                         # Blacklist
-                        blacklist = ["SocialClubHelper.exe", "Launcher.exe", "Rockstar Games Launcher", "GTA5_Enhanced.exe", "FSD-Win64-Shipping.exe"]
-                        if any(element.lower() in application.proplist['application.name'].lower() for element in blacklist):
+                        if any(element.lower() in application.proplist['application.name'].lower() for element in GameFilter.blacklist):
                             continue
 
                         # Whitelist
-                        whitelist = []
-                        if any(element in application.proplist['application.name'].lower() for element in whitelist):
+                        if any(element.lower() in application.proplist['application.name'].lower() for element in GameFilter.whitelist):
                             application_name = application.proplist['application.name']
                             restore_id = application.proplist.get('module-stream-restore.id', None)
                             index = application.index
-                            self.selected_application = Application(application_name=application_name, restore_id=restore_id, index=index)
+                            if any(element.lower() in application.proplist['application.name'].lower() for element in GameFilter.auto_mute):
+                                mute_on_game_launch = True
+                            else:
+                                mute_on_game_launch = False
+                            self.selected_application = Application(application_name=application_name, restore_id=restore_id, index=index,
+                                                                    mute_on_game_launch=mute_on_game_launch)
                             return
 
                     if 'application.process.binary' in application.proplist:
                         if os.getenv('AUDIO_CONTROL_PLUS_DEBUG_GAMES') == 'true':
                             log.debug(f"{application.proplist['application.name']} - {application.proplist['application.process.binary']}")
-                        application_process_binary = application.proplist['application.process.binary']
-                        if "wine" in application_process_binary.lower():
+                        if any(element.lower() in application.proplist['application.process.binary'].lower() for element in GameFilter.binary):
                             application_name = application.proplist['application.name']
                             restore_id = application.proplist.get('module-stream-restore.id', None)
                             index = application.index
-                            self.selected_application = Application(application_name=application_name, restore_id=restore_id, index=index)
+                            if any(element.lower() in application_name.lower() for element in GameFilter.auto_mute):
+                                mute_on_game_launch = True
+                            else:
+                                mute_on_game_launch = False
+                            self.selected_application = Application(application_name=application_name, restore_id=restore_id, index=index, mute_on_game_launch=mute_on_game_launch)
                             return
 
                 self.selected_application = Application(application_name='Game', restore_id=None, index=None)
+                self.on_game_change()
 
     def update_application_index(self):
         if self.selected_application and self.selected_application.restore_id:
@@ -233,6 +242,9 @@ class AudioCore(ActionCore):
                     index = application.index
                     self.selected_application.index = index
                     return
+
+    def on_game_change(self):
+        pass
 
     def on_update(self):
         self.update_game_application()
@@ -408,6 +420,9 @@ class AudioCore(ActionCore):
         elif event_type == 'remove':
             if event.index == index:
                 self.selected_application.index = None
+                if self.device_filter == DeviceFilter.GAME.value:
+                    self.update_game_application()
+                    self.display_device_name()
 
         if event.index == index:
             self.display_icon()

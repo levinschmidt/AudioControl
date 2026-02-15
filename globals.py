@@ -13,3 +13,29 @@ class Icons(StrEnum):
 class Colors(StrEnum):
     VOLUME_OK = "volume-ok"
     VOLUME_WARNING = "volume-warning"
+
+class GameFilter:
+    blacklist = [
+        # GTA V Enhanced
+        "SocialClubHelper.exe",
+        "Launcher.exe",
+        "Rockstar Games Launcher",
+        "GTA5_Enhanced.exe",
+        # Deep Rock Galactic
+        "FSD-Win64-Shipping.exe",
+        # Rocket League
+        "RocketLeague.exe"
+    ]
+
+    whitelist = [
+
+    ]
+
+    binary =[
+        "wine"
+    ]
+
+    # Automatically mute game with following application names
+    auto_mute = [
+        "Grand Theft Auto V"
+    ]
