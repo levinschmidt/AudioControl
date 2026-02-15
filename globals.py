@@ -37,5 +37,4 @@ class GameFilter:
 
     # Automatically mute game with following application names
     auto_mute = [
-        "Grand Theft Auto V"
     ]
