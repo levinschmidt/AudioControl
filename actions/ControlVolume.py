@@ -107,7 +107,7 @@ class ControlVolume(AudioCore):
 
             set_volume_music_player(self.selected_music_player, volume)
 
-        elif self.mode == Modes.OUTPUT.value:
+        elif self.mode == Modes.OUTPUT.value or self.mode == Modes.OUTPUT_DEFAULT.value:
             if self.selected_output_device is None:
                 self.show_error(1)
                 return

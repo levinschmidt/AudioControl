@@ -12,8 +12,7 @@ from GtkHelper.GenerativeUI.ExpanderRow import ExpanderRow
 from GtkHelper.GenerativeUI.SwitchRow import SwitchRow
 from src.backend.PluginManager.ActionCore import ActionCore
 
-from ..internal.PulseHelpers import (Modes, get_sinks_list, get_volume_from_application, get_volume_from_music_player, get_volume_from_output)
-from ..internal.PulseEventListener import PulseEvent
+from ..internal.PulseHelpers import (Modes, get_sinks_list, get_volume_from_application, get_volume_from_music_player, get_volume_from_output, get_default_output)
 from ..globals import GameFilter
 
 
@@ -204,6 +203,14 @@ class AudioCore(ActionCore):
     def create_event_assigners(self):
         pass
 
+    def update_default_output(self):
+        if self.mode == Modes.OUTPUT_DEFAULT.value:
+            default_output_device = get_default_output()
+            if default_output_device:
+                self.selected_output_device = OutputDevice(name=default_output_device.proplist['device.description'], node_name=default_output_device.proplist.get('node.name', None), index=default_output_device.index)
+                self.display_device_name()
+                self.display_device_info()
+
     def update_game_application(self):
         now = time.monotonic()
         if now - self._last_game_update_time > 1.0:
@@ -262,6 +269,7 @@ class AudioCore(ActionCore):
         pass
 
     def on_update(self):
+        self.update_default_output()
         self.update_game_application()
         self.display_device_name()
         self.display_device_info()
@@ -389,7 +397,7 @@ class AudioCore(ActionCore):
                 self.set_top_label(self.selected_music_player.name)
             elif self.mode == Modes.APPLICATION.value or self.mode == Modes.GAME.value:
                 self.set_top_label(self.selected_application.application_name)
-            elif self.mode == Modes.OUTPUT.value:
+            elif self.mode == Modes.OUTPUT.value or self.mode == Modes.OUTPUT_DEFAULT.value:
                 self.set_top_label(self.selected_output_device.name)
 
     def display_device_info(self):
@@ -412,7 +420,7 @@ class AudioCore(ActionCore):
             volume = get_volume_from_music_player(self.selected_music_player.bus_name)
         elif self.mode == Modes.APPLICATION.value or self.mode == Modes.GAME.value:
             volume = get_volume_from_application(self.selected_application.restore_id)
-        elif self.mode == Modes.OUTPUT.value:
+        elif self.mode == Modes.OUTPUT.value or self.mode == Modes.OUTPUT_DEFAULT.value:
             volume = get_volume_from_output(self.selected_output_device.node_name)
         else:
             volume = None
@@ -447,7 +455,7 @@ class AudioCore(ActionCore):
                 index = self.selected_application.index
             else:
                 index = None
-        elif self.mode == Modes.OUTPUT.value:
+        elif self.mode == Modes.OUTPUT.value or self.mode == Modes.OUTPUT_DEFAULT.value:
             if self.selected_output_device:
                 index = self.selected_output_device.index
             else:
@@ -468,6 +476,9 @@ class AudioCore(ActionCore):
                 if self.mode == Modes.GAME.value:
                     self.update_game_application()
                     self.display_device_name()
+        elif event_type == 'change':
+            if event.facility == 'server':
+                self.update_default_output()
 
         if event.index == index:
             self.display_icon()

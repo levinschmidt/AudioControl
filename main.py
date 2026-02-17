@@ -44,6 +44,7 @@ class AudioControl(PluginBase):
             pulsectl.PulseEventMaskEnum.sink,
             pulsectl.PulseEventMaskEnum.source,
             pulsectl.PulseEventMaskEnum.sink_input,
+            pulsectl.PulseEventMaskEnum.server
         )
         self.add_event_holder(self.pulse_sink_event_holder)
 

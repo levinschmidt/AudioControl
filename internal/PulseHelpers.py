@@ -10,11 +10,24 @@ from GtkHelper.ComboRow import SimpleComboRowItem
 class Modes(enum.Enum):
     APPLICATION = SimpleComboRowItem("application", "Application")
     OUTPUT = SimpleComboRowItem("output", "Output")
+    OUTPUT_DEFAULT = SimpleComboRowItem("output_default", "Default Output")
     MUSIC = SimpleComboRowItem("music", "Music")
     GAME = SimpleComboRowItem("game", "Game")
 
     def get_value(self):
         return self.value.get_value()
+
+def get_default_output():
+    with pulsectl.Pulse("restore-volume-getter") as pulse:
+        try:
+            default_sink_name = pulse.server_info().default_sink_name
+            saved_entries = pulse.sink_list()
+            for sink in saved_entries:
+                if sink.name == default_sink_name:
+                    return sink
+        except Exception as e:
+            log.error(f"Error while getting default output device with filter: Error: {e}")
+    return None
 
 def get_output(node_name):
     with pulsectl.Pulse("restore-volume-getter") as pulse:
