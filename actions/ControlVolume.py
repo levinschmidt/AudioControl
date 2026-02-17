@@ -8,11 +8,10 @@ from GtkHelper.GenerativeUI.ScaleRow import ScaleRow
 from src.backend.DeckManagement.InputIdentifier import Input
 from src.backend.PluginManager.EventAssigner import EventAssigner
 
-from internal.PulseHelpers import get_output, set_volume_output, get_volume_from_output
 from .AudioCore import AudioCore
 from ..globals import Icons
 from ..internal.PulseHelpers import (get_application, get_volume_from_music_player, get_volume_from_application, set_volume_music_player,
-                                     set_volume_application, Modes, mute)
+                                     set_volume_application, Modes, mute, get_output, set_volume_output, get_volume_from_output)
 
 
 class ControlVolume(AudioCore):
