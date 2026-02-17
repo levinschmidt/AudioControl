@@ -7,13 +7,25 @@ from gi.repository import Gio, GLib
 from GtkHelper.ComboRow import SimpleComboRowItem
 
 
-class DeviceFilter(enum.Enum):
-    MUSIC = SimpleComboRowItem("music", "Music")
+class Modes(enum.Enum):
     APPLICATION = SimpleComboRowItem("application", "Application")
+    OUTPUT = SimpleComboRowItem("output", "Output")
+    MUSIC = SimpleComboRowItem("music", "Music")
     GAME = SimpleComboRowItem("game", "Game")
 
     def get_value(self):
         return self.value.get_value()
+
+def get_output(node_name):
+    with pulsectl.Pulse("restore-volume-getter") as pulse:
+        try:
+            saved_entries = pulse.sink_list()
+            for sink in saved_entries:
+                if sink.name == node_name:
+                    return sink
+        except Exception as e:
+            log.error(f"Error while getting device with node_name: {node_name} with filter: Error: {e}")
+    return None
 
 def get_application(restore_id):
     with pulsectl.Pulse("restore-volume-getter") as pulse:
@@ -28,8 +40,8 @@ def get_application(restore_id):
     return None
 
 
-def get_application_list(filter: DeviceFilter):
-    if filter.get_value() == DeviceFilter.MUSIC.get_value():
+def get_sinks_list(mode: Modes):
+    if mode.get_value() == Modes.MUSIC.get_value():
         players = []
         try:
             # Connect to DBus and list all names
@@ -54,8 +66,11 @@ def get_application_list(filter: DeviceFilter):
             log.error(f"Error listing DBus players: {e}")
         return players
 
-    elif filter.get_value() == DeviceFilter.APPLICATION.get_value() or filter.get_value() == DeviceFilter.GAME.get_value():
+    elif mode.get_value() == Modes.APPLICATION.get_value() or mode.get_value() == Modes.GAME.get_value():
         return pulsectl.Pulse("app-list-getter").sink_input_list()
+
+    elif mode.get_value() == Modes.OUTPUT.get_value():
+        return pulsectl.Pulse("output-list-getter").sink_list()
 
     else:
         return []
@@ -78,6 +93,18 @@ def get_volume_from_music_player(player_bus_name: str):
             return round(volume * 100)
     except Exception as e:
         log.error(f"Error while getting volume from music player: {player_bus_name}. Error: {e}")
+    return None
+
+def get_volume_from_output(node_name):
+    try:
+        with pulsectl.Pulse("output-volume-getter") as pulse:
+            sinks = pulse.sink_list()
+            for sink in sinks:
+                if sink.name == node_name:
+                    volume = sink.volume.value_flat
+                    return round(volume * 100)
+    except Exception as e:
+        log.error(f"Error while getting volume from output: {node_name}. Error: {e}")
     return None
 
 def get_volume_from_application(restore_id):
@@ -108,6 +135,13 @@ def set_volume_music_player(player , volume: int):
         )
     except Exception as e:
         log.warning(f"Failed to set volume for {player.name}: {e}")
+
+def set_volume_output(sink, volume):
+    with pulsectl.Pulse("change-volume") as pulse:
+        try:
+            pulse.volume_set_all_chans(sink, volume * 0.01)
+        except Exception as e:
+            log.error(f"Error while setting volume on device with node_name: {sink.name}, volume is {volume}. Error: {e}")
 
 def set_volume_application(stream, volume):
       with pulsectl.Pulse("change-volume") as pulse:

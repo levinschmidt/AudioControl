@@ -7,10 +7,12 @@ from GtkHelper.GenerativeUI.ExpanderRow import ExpanderRow
 from GtkHelper.GenerativeUI.ScaleRow import ScaleRow
 from src.backend.DeckManagement.InputIdentifier import Input
 from src.backend.PluginManager.EventAssigner import EventAssigner
+
+from internal.PulseHelpers import get_output, set_volume_output, get_volume_from_output
 from .AudioCore import AudioCore
 from ..globals import Icons
 from ..internal.PulseHelpers import (get_application, get_volume_from_music_player, get_volume_from_application, set_volume_music_player,
-                                     set_volume_application, DeviceFilter, mute)
+                                     set_volume_application, Modes, mute)
 
 
 class ControlVolume(AudioCore):
@@ -101,13 +103,29 @@ class ControlVolume(AudioCore):
     def adjust_volume(self, modifier: int = 1):
         adjustment = self.adjust * modifier
 
-        if self.device_filter == DeviceFilter.MUSIC.value:
+        if self.mode == Modes.MUSIC.value:
             volume = get_volume_from_music_player(self.selected_music_player.bus_name) + adjustment
 
             set_volume_music_player(self.selected_music_player, volume)
 
+        elif self.mode == Modes.OUTPUT.value:
+            if self.selected_output_device is None:
+                self.show_error(1)
+                return
 
-        elif self.device_filter == DeviceFilter.APPLICATION.value or self.device_filter == DeviceFilter.GAME.value:
+            try:
+                output_device = get_output(self.selected_output_device.node_name)
+                old_volume = get_volume_from_output(self.selected_output_device.node_name)
+                if old_volume is None:
+                    return
+                new_volume = max(0, min(self.bounds, old_volume + adjustment))
+                set_volume_output(output_device, new_volume)
+
+            except Exception as e:
+                log.error(e)
+                self.show_error(1)
+
+        elif self.mode == Modes.APPLICATION.value or self.mode == Modes.GAME.value:
             if self.selected_application is None:
                 self.show_error(1)
                 return
@@ -134,7 +152,7 @@ class ControlVolume(AudioCore):
         self.bounds = value
 
     def on_mute(self, event):
-        if self.device_filter == DeviceFilter.APPLICATION.value or self.device_filter == DeviceFilter.GAME.value:
+        if self.mode == Modes.APPLICATION.value or self.mode == Modes.GAME.value:
             if self.selected_application is None:
                 return
 
