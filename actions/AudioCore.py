@@ -12,8 +12,7 @@ from GtkHelper.GenerativeUI.ExpanderRow import ExpanderRow
 from GtkHelper.GenerativeUI.SwitchRow import SwitchRow
 from src.backend.PluginManager.ActionCore import ActionCore
 
-from internal.PulseHelpers import get_volume_from_output
-from ..internal.PulseHelpers import (Modes, get_sinks_list, get_volume_from_application, get_volume_from_music_player)
+from ..internal.PulseHelpers import (Modes, get_sinks_list, get_volume_from_application, get_volume_from_music_player, get_volume_from_output)
 from ..internal.PulseEventListener import PulseEvent
 from ..globals import GameFilter
 
