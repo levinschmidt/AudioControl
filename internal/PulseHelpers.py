@@ -146,10 +146,11 @@ def set_volume_music_player(player , volume: int):
         log.warning(f"Failed to set volume for {player.name}: {e}")
 
 def set_volume_output(core, sink, volume):
-    try:
-        core.pulse_client.volume_set_all_chans(sink, volume * 0.01)
-    except Exception as e:
-        log.error(f"Error while setting volume on device with node_name: {sink.name}, volume is {volume}. Error: {e}")
+    with pulsectl.Pulse("volume-setter") as pulse:
+        try:
+            pulse.volume_set_all_chans(sink, volume * 0.01)
+        except Exception as e:
+            log.error(f"Error while setting volume on device with node_name: {sink.name}, volume is {volume}. Error: {e}")
 
 def set_volume_application(stream, volume):
       with pulsectl.Pulse("change-volume") as pulse:
