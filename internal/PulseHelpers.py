@@ -31,8 +31,9 @@ def get_default_output():
 
 def get_output(core):
     try:
-        sink = next((s for s in core.pulse_client.sink_list() if s.name == core.selected_output_device.node_name), None)
-        return sink
+        with pulsectl.Pulse("sink-lookup-helper") as pulse:
+            sink = next((s for s in pulse.sink_list() if s.name == core.selected_output_device.node_name), None)
+            return sink
     except Exception as e:
         log.error(f"Error while getting device with node_name: {core.selected_output_device.node_name} with filter: Error: {e}")
     return None
@@ -108,8 +109,11 @@ def get_volume_from_music_player(player_bus_name: str):
 def get_volume_from_output(core):
     try:
         core.selected_output_device.sink = get_output(core)
-        volume = core.selected_output_device.sink.volume.value_flat
-        return round(volume * 100)
+        if core.selected_output_device.sink:
+            volume = core.selected_output_device.sink.volume.value_flat
+            return round(volume * 100)
+        else:
+            return None
     except Exception as e:
         log.error(f"Error while getting volume from output: {core.selected_output_device.sink.node_name}. Error: {e}")
     return None
