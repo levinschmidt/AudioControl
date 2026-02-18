@@ -113,12 +113,11 @@ class ControlVolume(AudioCore):
                 return
 
             try:
-                output_device = get_output(self.selected_output_device.node_name)
-                old_volume = get_volume_from_output(self.selected_output_device.node_name)
+                old_volume = get_volume_from_output(self)
                 if old_volume is None:
                     return
                 new_volume = max(0, min(self.bounds, old_volume + adjustment))
-                set_volume_output(output_device, new_volume)
+                set_volume_output(self, self.selected_output_device.sink, new_volume)
 
             except Exception as e:
                 log.error(e)
@@ -170,27 +169,26 @@ class ControlVolume(AudioCore):
     ########### UI STUFF ###########
 
     def update_mute_state(self):
-        with pulsectl.Pulse(f"mute-event") as pulse:
-            try:
-                if self.selected_application is None:
+        try:
+            if self.selected_application is None:
+                self.is_muted = False
+            else:
+                device = get_application(self.selected_application.restore_id)
+                if device is None:
                     self.is_muted = False
                 else:
-                    device = get_application(self.selected_application.restore_id)
-                    if device is None:
-                        self.is_muted = False
+                    if self.selected_application.mute_on_game_launch:
+                        self.selected_application.mute_on_game_launch = False
+                        self.is_muted = True
+                        mute(device, True)
                     else:
-                        if self.selected_application.mute_on_game_launch:
-                            self.selected_application.mute_on_game_launch = False
-                            self.is_muted = True
-                            mute(device, True)
-                        else:
-                            self.is_muted = bool(device.mute)
+                        self.is_muted = bool(device.mute)
 
-                self.set_current_icon()
+            self.set_current_icon()
 
-            except Exception as e:
-                log.error(f"Error while updating mute image: {e}")
-                self.show_error(1)
+        except Exception as e:
+            log.error(f"Error while updating mute image: {e}")
+            self.show_error(1)
 
     def set_current_icon(self):
         if self.is_muted:

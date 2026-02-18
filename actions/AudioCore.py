@@ -2,6 +2,7 @@ import enum
 import os
 import time
 
+import pulsectl
 from gi.overrides.Gio import Gio
 from loguru import logger as log
 
@@ -23,6 +24,7 @@ class InfoContent(enum.Enum):
 class MusicPlayer(BaseComboRowItem):
     def __init__(self, bus_name):
         super().__init__()
+
         self.bus_name: str = bus_name
         self.name: str = bus_name.split(".")[-1]
 
@@ -57,11 +59,13 @@ class Application(BaseComboRowItem):
         return self.restore_id
 
 class OutputDevice(BaseComboRowItem):
-    def __init__(self, name: str, node_name: str, index: int):
+    def __init__(self, name: str, node_name: str, index: int, sink=None, volume=None):
         super().__init__()
         self.name = name
         self.node_name = node_name
         self.index = index
+        self.sink = sink
+        self.volume = None
 
     def __str__(self):
         return self.name
@@ -75,6 +79,8 @@ class AudioCore(ActionCore):
         self.has_configuration = True
 
         self.plugin_base.asset_manager.icons.add_listener(self.icon_changed)
+
+        self.pulse_client = pulsectl.Pulse("streamcontroller-AudioControlPlus")
 
         self.plugin_base.connect_to_event(event_id="com_gapls_AudioControl::PulseEvent",
                                           callback=self.on_pulse_device_change)
@@ -217,7 +223,7 @@ class AudioCore(ActionCore):
             if self.mode == Modes.GAME.value:
                 self._last_game_update_time = now
 
-                application_list = get_sinks_list(self.mode)
+                application_list = get_sinks_list(self, self.mode)
 
                 for application in application_list:
                     if 'application.name' in application.proplist:
@@ -257,7 +263,7 @@ class AudioCore(ActionCore):
 
     def update_application_index(self):
         if self.selected_application and self.selected_application.restore_id:
-            application_list = get_sinks_list(self.mode)
+            application_list = get_sinks_list(self, self.mode)
 
             for application in application_list:
                 if 'module-stream-restore.id' in application.proplist and application.proplist['module-stream-restore.id'] == self.selected_application.restore_id:
@@ -290,7 +296,7 @@ class AudioCore(ActionCore):
 
     def load_sinks(self):
         try:
-            sink_list = get_sinks_list(self.mode)
+            sink_list = get_sinks_list(self, self.mode)
 
             if self.mode == Modes.MUSIC.value:
                 self.loaded_music_players = []
@@ -308,7 +314,8 @@ class AudioCore(ActionCore):
                         device_description = sink.proplist['device.description']
                         node_name = sink.proplist.get('node.name', None)
                         index = sink.index
-                        self.loaded_output_devices.append(OutputDevice(name=device_description, node_name=node_name, index=index))
+                        volume = round(sink.volume.value_flat * 100)
+                        self.loaded_output_devices.append(OutputDevice(name=device_description, node_name=node_name, index=index, sink=sink, volume=volume))
 
                 self.device_combo_row.populate(self.loaded_output_devices, self.device_combo_row.get_value())
 
@@ -421,7 +428,7 @@ class AudioCore(ActionCore):
         elif self.mode == Modes.APPLICATION.value or self.mode == Modes.GAME.value:
             volume = get_volume_from_application(self.selected_application.restore_id)
         elif self.mode == Modes.OUTPUT.value or self.mode == Modes.OUTPUT_DEFAULT.value:
-            volume = get_volume_from_output(self.selected_output_device.node_name)
+            volume = get_volume_from_output(self)
         else:
             volume = None
 
