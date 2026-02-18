@@ -455,6 +455,7 @@ class AudioCore(ActionCore):
 
         self.display_icon()
 
+    #TODO: Update volume on change
     async def on_pulse_device_change(self, *args, **kwargs):
         if len(args) < 2 or self.mode == Modes.MUSIC.value:
             return
@@ -471,6 +472,8 @@ class AudioCore(ActionCore):
                 index = self.selected_output_device.index
             else:
                 index = None
+        else:
+            index = None
 
         if event_type == 'new':
             if index is None:
@@ -488,6 +491,11 @@ class AudioCore(ActionCore):
                     self.update_game_application()
                     self.display_device_name()
         elif event_type == 'change':
+            if event.index == index:
+                if self.mode == Modes.APPLICATION.value or self.mode == Modes.GAME.value:
+                    pass
+                elif self.mode == Modes.OUTPUT.value or self.mode == Modes.OUTPUT_DEFAULT.value:
+                    self.selected_output_device.volume = get_volume_from_output(self)
             if event.facility == 'server':
                 self.update_default_output()
 

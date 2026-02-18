@@ -29,15 +29,12 @@ def get_default_output():
             log.error(f"Error while getting default output device with filter: Error: {e}")
     return None
 
-def get_output(core, node_name):
-    #with pulsectl.Pulse("restore-volume-getter") as pulse:
+def get_output(core):
     try:
-        saved_entries = core.pulse_client.sink_list()
-        for sink in saved_entries:
-            if sink.name == node_name:
-                return sink
+        sink = next((s for s in core.pulse_client.sink_list() if s.name == core.selected_output_device.node_name), None)
+        return sink
     except Exception as e:
-        log.error(f"Error while getting device with node_name: {node_name} with filter: Error: {e}")
+        log.error(f"Error while getting device with node_name: {core.selected_output_device.node_name} with filter: Error: {e}")
     return None
 
 def get_application(restore_id):
@@ -110,6 +107,7 @@ def get_volume_from_music_player(player_bus_name: str):
 
 def get_volume_from_output(core):
     try:
+        core.selected_output_device.sink = get_output(core)
         volume = core.selected_output_device.sink.volume.value_flat
         return round(volume * 100)
     except Exception as e:
