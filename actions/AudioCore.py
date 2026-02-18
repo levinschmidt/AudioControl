@@ -213,7 +213,11 @@ class AudioCore(ActionCore):
         if self.mode == Modes.OUTPUT_DEFAULT.value:
             default_output_device = get_default_output()
             if default_output_device:
-                self.selected_output_device = OutputDevice(name=default_output_device.proplist['device.description'], node_name=default_output_device.proplist.get('node.name', None), index=default_output_device.index)
+                name = default_output_device.proplist['device.description']
+                node_name = default_output_device.proplist.get('node.name', None)
+                index = default_output_device.index
+                volume = round(default_output_device.volume.value_flat * 100)
+                self.selected_output_device = OutputDevice(name=name, node_name=node_name, index=index, sink=default_output_device, volume=volume)
                 self.display_device_name()
                 self.display_device_info()
 
