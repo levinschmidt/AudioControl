@@ -304,10 +304,14 @@ class AudioCore(ActionCore):
 
             if self.mode == Modes.MUSIC.value:
                 self.loaded_music_players = []
+                settings = self.get_settings()
+                saved_bus_name = settings.get('bus_name', None)
 
                 for device in sink_list:
                     self.loaded_music_players.append(MusicPlayer(bus_name=device))
 
+                if saved_bus_name and not any(player.bus_name == saved_bus_name for player in self.loaded_music_players):
+                    self.loaded_music_players.append(MusicPlayer(bus_name=saved_bus_name))
                 self.device_combo_row.populate(self.loaded_music_players, self.device_combo_row.get_value())
 
             elif self.mode == Modes.OUTPUT.value:
@@ -356,6 +360,9 @@ class AudioCore(ActionCore):
     def target_selection_changed(self, widget, value, old):
         if self.mode == Modes.MUSIC.value:
             self.selected_music_player = value
+            settings = self.get_settings()
+            settings["bus_name"] = value.bus_name
+            self.set_settings(settings)
         elif self.mode == Modes.APPLICATION.value:
             self.selected_application = value
             settings = self.get_settings()
