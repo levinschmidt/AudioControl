@@ -86,11 +86,10 @@ def get_sinks_list(core, mode: Modes):
     else:
         return []
 
-def get_volume_from_music_player(player_bus_name: str):
+def get_volume_from_music_player(core, player_bus_name: str):
     try:
-        conn = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         proxy = Gio.DBusProxy.new_sync(
-            conn,
+            core.session_bus,
             Gio.DBusProxyFlags.NONE,
             None,
             player_bus_name,

@@ -23,6 +23,18 @@ class ControlVolume(AudioCore):
         self.plugin_base.connect_to_event(event_id="com_gapls_AudioControl::PulseEvent",
                                           callback=self.on_pulse_device_change)
 
+        self.session_bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        self.session_bus.signal_subscribe(
+            None,
+            "org.freedesktop.DBus.Properties",
+            "PropertiesChanged",
+            None,
+            "org.mpris.MediaPlayer2.Player",
+            Gio.DBusSignalFlags.NONE,
+            self.on_bus_change,
+            None
+        )
+
         self.adjust: int = 1
         self.bounds = 150
 
@@ -103,7 +115,7 @@ class ControlVolume(AudioCore):
         adjustment = self.adjust * modifier
 
         if self.mode == Modes.MUSIC.value:
-            volume = get_volume_from_music_player(self.selected_music_player.bus_name) + adjustment
+            volume = get_volume_from_music_player(self, self.selected_music_player.bus_name) + adjustment
 
             set_volume_music_player(self.selected_music_player, volume)
 
@@ -165,6 +177,10 @@ class ControlVolume(AudioCore):
     def on_game_change(self):
         super().on_game_change()
         self.update_mute_state()
+
+    def on_bus_change(self, connection, sender_name, object_path, interface_name, signal_name, parameters, user_data):
+        if self.mode == Modes.MUSIC.value:
+            self.display_device_info()
 
     ########### UI STUFF ###########
 

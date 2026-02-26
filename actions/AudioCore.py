@@ -287,16 +287,7 @@ class AudioCore(ActionCore):
         return
 
     def on_tick(self):
-        if not self.mode == Modes.MUSIC.value or not self.selected_music_player:
-            return
-
-        now = time.monotonic()
-        # Poll more frequently for Music, less for others (safety poll)
-        interval = 1 #0.25 if self.device_filter == DeviceFilter.MUSIC.value else 1.0
-
-        if now - self._last_volume_refresh_music_player >= interval:
-            self._last_volume_refresh_music_player = now
-            self.display_device_info()
+        pass
 
     def load_sinks(self):
         try:
@@ -435,7 +426,7 @@ class AudioCore(ActionCore):
             return "N/A"
 
         if self.mode == Modes.MUSIC.value:
-            volume = get_volume_from_music_player(self.selected_music_player.bus_name)
+            volume = get_volume_from_music_player(self, self.selected_music_player.bus_name)
         elif self.mode == Modes.APPLICATION.value or self.mode == Modes.GAME.value:
             volume = get_volume_from_application(self.selected_application.restore_id)
         elif self.mode == Modes.OUTPUT.value or self.mode == Modes.OUTPUT_DEFAULT.value:
