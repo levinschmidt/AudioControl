@@ -10,8 +10,9 @@ from src.backend.PluginManager.EventAssigner import EventAssigner
 
 from .AudioCore import AudioCore
 from ..globals import Icons
-from ..internal.PulseHelpers import (get_application, get_volume_from_music_player, get_volume_from_application, set_volume_music_player,
-                                     set_volume_application, Modes, mute, set_volume_output, get_volume_from_output)
+from ..internal.PulseHelpers import (get_application, get_application_by_index, get_volume_from_music_player, get_volume_from_application,
+                                     get_volume_from_application_by_index, set_volume_music_player, set_volume_application, Modes, mute,
+                                     set_volume_output, get_volume_from_output)
 
 
 class ControlVolume(AudioCore):
@@ -135,14 +136,17 @@ class ControlVolume(AudioCore):
                 log.error(e)
                 self.show_error(1)
 
-        elif self.mode == Modes.APPLICATION.value or self.mode == Modes.GAME.value:
+        elif self.mode == Modes.APPLICATION.value or self.mode == Modes.GAME.value or self.mode == Modes.FIREFOX.value:
             if self.selected_application is None:
-                self.show_error(1)
                 return
 
             try:
-                device = get_application(self.selected_application.restore_id)
-                old_volume = get_volume_from_application(self.selected_application.restore_id)
+                if self.mode == Modes.FIREFOX.value:
+                    device = get_application_by_index(self.selected_application.index)
+                    old_volume = get_volume_from_application_by_index(self.selected_application.index)
+                else:
+                    device = get_application(self.selected_application.restore_id)
+                    old_volume = get_volume_from_application(self.selected_application.restore_id)
                 if old_volume is None:
                     return
                 new_volume = max(0, min(self.bounds, old_volume + adjustment))

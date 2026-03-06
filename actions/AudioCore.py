@@ -13,7 +13,9 @@ from GtkHelper.GenerativeUI.ExpanderRow import ExpanderRow
 from GtkHelper.GenerativeUI.SwitchRow import SwitchRow
 from src.backend.PluginManager.ActionCore import ActionCore
 
-from ..internal.PulseHelpers import (Modes, get_sinks_list, get_volume_from_application, get_volume_from_music_player, get_volume_from_output, get_default_output)
+from ..internal.PulseHelpers import (Modes, get_sinks_list, get_volume_from_application, get_volume_from_application_by_index,
+                                     get_volume_from_music_player, get_volume_from_output,
+                                     get_default_output)
 from ..globals import GameFilter
 
 
@@ -265,6 +267,17 @@ class AudioCore(ActionCore):
                 self.selected_application = Application(application_name='Game', restore_id=None, index=None)
                 self.on_game_change()
 
+    def update_firefox_application(self):
+        application_list = get_sinks_list(self, self.mode)
+
+        for application in application_list:
+            if ('application.name' in application.proplist and 'firefox' in application.proplist['application.name'].lower()
+                    and application.corked == False):
+                restore_id = application.proplist.get('module-stream-restore.id', None)
+                index = application.index
+                self.selected_application = Application(application_name="Firefox", restore_id=restore_id, index=index)
+                return
+
     def update_application_index(self):
         if self.selected_application and self.selected_application.restore_id:
             application_list = get_sinks_list(self, self.mode)
@@ -281,6 +294,7 @@ class AudioCore(ActionCore):
     def on_update(self):
         self.update_default_output()
         self.update_game_application()
+        self.update_firefox_application()
         self.display_device_name()
         self.display_device_info()
         self.display_icon()
@@ -429,6 +443,8 @@ class AudioCore(ActionCore):
             volume = get_volume_from_music_player(self, self.selected_music_player.bus_name)
         elif self.mode == Modes.APPLICATION.value or self.mode == Modes.GAME.value:
             volume = get_volume_from_application(self.selected_application.restore_id)
+        elif  self.mode == Modes.FIREFOX.value:
+            volume = get_volume_from_application_by_index(self.selected_application.index)
         elif self.mode == Modes.OUTPUT.value or self.mode == Modes.OUTPUT_DEFAULT.value:
             volume = get_volume_from_output(self)
         else:
@@ -460,7 +476,7 @@ class AudioCore(ActionCore):
 
         event = args[1]
         event_type = event.t._value
-        if self.mode == Modes.APPLICATION.value or self.mode == Modes.GAME.value:
+        if self.mode == Modes.APPLICATION.value or self.mode == Modes.GAME.value or self.mode == Modes.FIREFOX.value:
             if self.selected_application:
                 index = self.selected_application.index
             else:
@@ -482,6 +498,8 @@ class AudioCore(ActionCore):
                 self.display_device_name()
                 self.display_icon()
                 self.display_device_info()
+            elif self.mode == Modes.FIREFOX.value:
+                self.update_firefox_application()
         elif event_type == 'remove':
             if event.index == index:
                 self.selected_application.index = None
@@ -494,6 +512,8 @@ class AudioCore(ActionCore):
                     pass
                 elif self.mode == Modes.OUTPUT.value or self.mode == Modes.OUTPUT_DEFAULT.value:
                     self.selected_output_device.volume = get_volume_from_output(self)
+            if self.mode == Modes.FIREFOX.value:
+                self.update_firefox_application()
             if event.facility == 'server':
                 self.update_default_output()
 

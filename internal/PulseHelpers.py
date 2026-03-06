@@ -13,6 +13,7 @@ class Modes(enum.Enum):
     OUTPUT_DEFAULT = SimpleComboRowItem("output_default", "Default Output")
     MUSIC = SimpleComboRowItem("music", "Music")
     GAME = SimpleComboRowItem("game", "Game")
+    FIREFOX = SimpleComboRowItem("firefox", "Firefox")
 
     def get_value(self):
         return self.value.get_value()
@@ -50,6 +51,16 @@ def get_application(restore_id):
             log.error(f"Error while getting device with restore_id: {restore_id} with filter: Error: {e}")
     return None
 
+def get_application_by_index(index):
+    with pulsectl.Pulse("restore-volume-getter") as pulse:
+        try:
+            saved_entries = pulse.sink_input_list()
+            for stream in saved_entries:
+                if stream.index == index:
+                    return stream
+        except Exception as e:
+            log.error(f"Error while getting device with index: {index} with filter: Error: {e}")
+    return None
 
 def get_sinks_list(core, mode: Modes):
     if mode.get_value() == Modes.MUSIC.get_value():
@@ -77,7 +88,7 @@ def get_sinks_list(core, mode: Modes):
             log.error(f"Error listing DBus players: {e}")
         return players
 
-    elif mode.get_value() == Modes.APPLICATION.get_value() or mode.get_value() == Modes.GAME.get_value():
+    elif mode.get_value() == Modes.APPLICATION.get_value() or mode.get_value() == Modes.GAME.get_value() or mode.get_value() == Modes.FIREFOX.get_value():
         return core.pulse_client.sink_input_list()
 
     elif mode.get_value() == Modes.OUTPUT.get_value():
@@ -119,6 +130,17 @@ def get_volume_from_output(core):
 
 def get_volume_from_application(restore_id):
     device = get_application(restore_id)
+    if device is None:
+        return None
+    try:
+        volume = device.volume.value_flat
+        return round(volume * 100)
+    except Exception as e:
+        log.error(f"Error while getting volumes from device: {device.name}. Error: {e}")
+        return None
+
+def get_volume_from_application_by_index(index):
+    device = get_application_by_index(index)
     if device is None:
         return None
     try:
