@@ -268,8 +268,10 @@ class AudioCore(ActionCore):
                 self.on_game_change()
 
     def update_firefox_application(self):
-        application_list = get_sinks_list(self, self.mode)
+        if self.mode != Modes.FIREFOX.value:
+            return
 
+        application_list = get_sinks_list(self, self.mode)
         for application in application_list:
             if ('application.name' in application.proplist and 'firefox' in application.proplist['application.name'].lower()
                     and application.corked == False):
